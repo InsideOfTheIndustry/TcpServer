@@ -10,9 +10,9 @@
 package jwt
 
 import (
-	"tcpserver/logServer"
 	"time"
 
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -54,8 +54,8 @@ func ParseToken(tokenstring string) (*UserClaim, error) {
 		return []byte(SECRETKEY), nil
 	})
 	if claims, ok := token.Claims.(*UserClaim); ok && token.Valid {
-		return claims,nil                           
+		return claims, nil
 	} else {
-		return nil,err
+		return nil, err
 	}
 }

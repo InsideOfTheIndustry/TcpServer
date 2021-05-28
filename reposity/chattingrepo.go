@@ -11,7 +11,7 @@ package reposity
 
 // ChattingReposity 聊天存储库
 type ChattingReposity interface {
-	Query(useraccount int64) (*UserInfo, error) // 用户是否存在
+	Query(useraccount int64) (*UserInfo, error)       // 用户是否存在
 	SetFriend(launcher, accepter int64) (bool, error) // 建立朋友关系
 }
 

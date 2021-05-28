@@ -10,9 +10,9 @@
 package user
 
 import (
-	"tcpserver/database/xormdatabase"
-	"tcpserver/logServer"
-	"tcpserver/reposity"
+	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
+	"github.com/InsideOfTheIndustry/TcpServe/reposity"
 )
 
 // UserRepository 用户的dao操作

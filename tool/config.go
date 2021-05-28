@@ -39,6 +39,6 @@ func ParseConfig(path string) (*ConfigStruct, error) {
 }
 
 // GetConfig 获取配置结构
-func GetConfig() *ConfigStruct{
+func GetConfig() *ConfigStruct {
 	return _config
 }

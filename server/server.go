@@ -15,13 +15,14 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"tcpserver/database/redisdatabase"
-	redisuser "tcpserver/database/redisdatabase/user"
-	"tcpserver/database/xormdatabase"
-	xormuser "tcpserver/database/xormdatabase/repository/user"
-	"tcpserver/logServer"
-	"tcpserver/reposity"
 	"time"
+
+	redisdatabase "github.com/InsideOfTheIndustry/TcpServe/database/redis"
+	redisuser "github.com/InsideOfTheIndustry/TcpServe/database/redis/user"
+	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
+	xormuser "github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase/repository/user"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
+	"github.com/InsideOfTheIndustry/TcpServe/reposity"
 )
 
 // Tcp服务器

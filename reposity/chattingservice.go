@@ -9,9 +9,10 @@
 package reposity
 
 import (
-	"tcpserver/logServer"
-	"tcpserver/utils/jwt"
 	"time"
+
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
+	"github.com/InsideOfTheIndustry/TcpServe/utils/jwt"
 )
 
 // UserService 用户领域服务
@@ -45,17 +46,17 @@ func (us UserService) IfTokenSameAndNotExpired(useraccount int64, token string) 
 	}
 	claim, err := jwt.ParseToken(token)
 	if err != nil {
-		logServer.Error("token解析失败:%s",err.Error())
+		logServer.Error("token解析失败:%s", err.Error())
 		return false, err
 	}
 	if claim.ExpiresAt < time.Now().Unix() {
-		return false, nil 
+		return false, nil
 	}
 	return true, nil
 }
 
 // BuildFriend 建立好友关系
 func (us UserService) BuildFriend(launcher, accepter int64) (bool, error) {
-	ifsuccess, err := us.ChattingReposity.SetFriend(launcher,accepter)
+	ifsuccess, err := us.ChattingReposity.SetFriend(launcher, accepter)
 	return ifsuccess, err
 }

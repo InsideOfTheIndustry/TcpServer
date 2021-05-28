@@ -7,11 +7,11 @@
 // created by zhujunjie(1121883342@qq.com) at 2021-05-15
 //
 
-package redisdatabase
+package redis
 
 import (
-	"tcpserver/configServer"
-	"tcpserver/logServer"
+	"github.com/InsideOfTheIndustry/TcpServe/config"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -24,12 +24,12 @@ type RedisEngine struct {
 var RedisClient *RedisEngine
 
 // InitRedis 初始化redis连接
-func InitRedis(config *configServer.ConfigStruct) {
-	redisconfig := config.Redis
+func InitRedis() {
+
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisconfig.Addr,
-		Password: redisconfig.Password,
-		DB:       redisconfig.Db,
+		Addr:     config.RedisConfig.Addr,
+		Password: config.RedisConfig.Password,
+		DB:       config.RedisConfig.Db,
 	})
 
 	var newredisclient = &RedisEngine{}
