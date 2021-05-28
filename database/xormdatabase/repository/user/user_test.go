@@ -12,19 +12,18 @@ package user
 import (
 	"testing"
 
-	"github.com/InsideOfTheIndustry/tcpserver/reposity"
-
+	"github.com/InsideOfTheIndustry/TcpServe/config"
 	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
 	"github.com/InsideOfTheIndustry/TcpServe/logServer"
+	"github.com/InsideOfTheIndustry/TcpServe/reposity"
 )
 
 func TestCreate(t *testing.T) {
 	// 读取配置文件
-	configServer.ParseConfig("../../../../config/config.json")
-	config := configServer.GetConfig()
+	config.Setup("config/settings.yaml")
 	// 测试数据库
 	var userdao = UserRepository{}
-	xormdatabase.InitXormEngine(config)
+	xormdatabase.InitXormEngine()
 	userdao.XormEngine = xormdatabase.DBEngine
 	var userinfo = reposity.UserInfo{
 		UserEmail:    "xxx2",
