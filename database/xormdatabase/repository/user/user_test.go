@@ -10,11 +10,12 @@
 package user
 
 import (
-	"tcpserver/configServer"
-	"tcpserver/database/xormdatabase"
-	"tcpserver/logServer"
-	"tcpserver/reposity"
 	"testing"
+
+	"github.com/InsideOfTheIndustry/tcpserver/reposity"
+
+	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 )
 
 func TestCreate(t *testing.T) {

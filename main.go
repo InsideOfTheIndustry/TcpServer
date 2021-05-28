@@ -11,16 +11,19 @@ package main
 
 import (
 	"context"
-	"tcpserver/configServer"
-	"tcpserver/database/redisdatabase"
-	"tcpserver/database/xormdatabase"
-	"tcpserver/logServer"
-	"tcpserver/server"
+
+	"github.com/InsideOfTheIndustry/TcpServe/config"
+	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
+	"github.com/InsideOfTheIndustry/TcpServe/server"
 )
 
 func main() {
+	config.Setup("config/settings.yaml")
+
 	configServer.ParseConfig("./config/config.json")
 	config := configServer.GetConfig()
+
 	xormdatabase.InitXormEngine(config)
 	redisdatabase.InitRedis(config)
 	ctx, cancel := context.WithCancel(context.Background())

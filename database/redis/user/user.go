@@ -12,15 +12,16 @@ package user
 import (
 	"context"
 	"strconv"
-	"tcpserver/database/redisdatabase"
-	"tcpserver/logServer"
 	"time"
+
+	redisclient "github.com/InsideOfTheIndustry/TcpServe/database/redis"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 
 	"github.com/go-redis/redis/v8"
 )
 
 type UserCacheRepository struct {
-	*redisdatabase.RedisEngine
+	*redisclient.RedisEngine
 }
 
 var ctx = context.Background()

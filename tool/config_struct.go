@@ -11,8 +11,8 @@ package tool
 
 // 配置文件结构
 type ConfigStruct struct {
-	Ip string `json:"Ip"` // ip地址
-	Port string `json:"Port"` // 端口号
+	Ip         string `json:"Ip"`         // ip地址
+	Port       string `json:"Port"`       // 端口号
 	ConfigPath string `json:"ConfigPath"` // 日志路由
 }
 

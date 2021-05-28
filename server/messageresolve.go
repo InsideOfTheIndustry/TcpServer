@@ -13,8 +13,9 @@ import (
 	"encoding/json"
 	"net"
 	"strconv"
-	"tcpserver/logServer"
-	"tcpserver/reposity"
+
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
+	"github.com/InsideOfTheIndustry/TcpServe/reposity"
 )
 
 // NewUserLoginIn 新连接加入

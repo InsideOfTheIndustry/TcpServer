@@ -18,7 +18,7 @@ const Port = 4000
 
 // User 用户结构
 type User struct {
-	Id string // 用户标识
-	Conn *net.Conn // 用户连接
+	Id      string          // 用户标识
+	Conn    *net.Conn       // 用户连接
 	Context context.Context // 上下文用于协程控制
 }

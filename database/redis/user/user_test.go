@@ -9,21 +9,22 @@
 package user
 
 import (
-	"tcpserver/configServer"
-	"tcpserver/database/redisdatabase"
-	"tcpserver/logServer"
 	"testing"
+
+	"github.com/InsideOfTheIndustry/TcpServe/config"
+	"github.com/InsideOfTheIndustry/TcpServe/database/redis"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 )
 
 func TestRedis(t *testing.T) {
 	// 读取配置文件
-	configServer.ParseConfig("../../../config/config.json")
-	config := configServer.GetConfig()
 
-	redisdatabase.InitRedis(config)
+	config.Setup("config/settings.yaml")
+
+	redis.InitRedis()
 
 	var userdao = UserCacheRepository{
-		redisdatabase.RedisClient,
+		redis.RedisClient,
 	}
 
 	userdao.SetVerificationCode("1121883342@qq.com", "你看看")

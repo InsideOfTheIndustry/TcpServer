@@ -10,9 +10,8 @@
 package xormdatabase
 
 import (
-	"tcpserver/configServer"
-	"tcpserver/logServer"
-
+	"github.com/InsideOfTheIndustry/TcpServe/config"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/go-xorm/xorm"
 	"xorm.io/core"
@@ -27,15 +26,15 @@ type XormEngine struct {
 var DBEngine *XormEngine
 
 // InitXormEngine 初始化数据库引擎
-func InitXormEngine(config *configServer.ConfigStruct) error {
-	dbconfig := config.Database
-	connectexpression := dbconfig.User + ":" + dbconfig.Password + "@tcp(" + dbconfig.Host + ":" + dbconfig.Port + ")/" + dbconfig.DBName + "?charset=" + dbconfig.Charset // "root:888888@tcp(127.0.0.1:3306)/db_jpa_demo?charset=utf8"
+func InitXormEngine() error {
+
+	connectexpression := config.DatabaseConfig.User + ":" + config.DatabaseConfig.Password + "@tcp(" + config.DatabaseConfig.Host + ":" + config.DatabaseConfig.Port + ")/" + config.DatabaseConfig.DBName + "?charset=" + config.DatabaseConfig.Charset // "root:888888@tcp(127.0.0.1:3306)/db_jpa_demo?charset=utf8"
 	engine, err := xorm.NewEngine("mysql", connectexpression)
 	if err != nil {
 		logServer.Error("数据库连接失败：（%s）", err.Error())
 		return err
 	}
-	engine.ShowSQL(dbconfig.Showsql)
+	engine.ShowSQL(config.DatabaseConfig.Showsql)
 
 	engine.SetMapper(core.SameMapper{})
 	// 分配空间并指向分配的空间
