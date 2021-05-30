@@ -10,8 +10,6 @@
 package config
 
 import (
-	"log"
-
 	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	"github.com/spf13/viper"
 )
@@ -26,38 +24,37 @@ func Setup(path string) {
 	settingCfg.SetConfigFile(path)
 	if err := settingCfg.ReadInConfig(); err != nil {
 		logServer.Error("配置文件读取失败:%s", err.Error())
-		log.Panic("读取配置文件失败")
-		panic("读取配置文件失败")
+		return
 	}
 
 	// 服务参数
 	cfgApplication = settingCfg.Sub("settings.application")
 	if cfgApplication == nil {
-		log.Panic("can not find application")
-		panic("can not find application")
+		logServer.Error("找不到application设置")
+		return
 	}
 	ApplicationConfig = InitApplication(cfgApplication)
 
 	// 配置TCP服务器
 	cfgTcpserver = settingCfg.Sub("settings.tcpserver")
-	if cfgApplication == nil {
-		log.Panic("can not find tcpserver")
-		panic("can not find tcpserver")
+	if cfgTcpserver == nil {
+		logServer.Error("找不到tcpserver设置")
+		return
 	}
 	TcpServerConfig = InitTcpServer(cfgTcpserver)
 
 	// 数据库配置
 	cfgDatabase = settingCfg.Sub("settings.database")
 	if cfgDatabase == nil {
-		log.Panic("can not find database")
-		panic("can not find database")
+		logServer.Error("找不到database设置")
+		return
 	}
 	DatabaseConfig = InitDatabase(cfgDatabase)
 	// redis配置
 	cfgRedis = settingCfg.Sub("settings.redis")
-	if cfgDatabase == nil {
-		log.Panic("can not find redis")
-		panic("can not find redis")
+	if cfgRedis == nil {
+		logServer.Error("找不到redis设置")
+		return
 	}
 	RedisConfig = InitRedis(cfgRedis)
 }
