@@ -20,13 +20,12 @@ import (
 )
 
 func main() {
-	config.Setup("config/settings.yaml")
-
+	config.Setup("./config/config.yaml")
+	logServer.Setup("info")
 	xormdatabase.InitXormEngine()
 	redisdatabase.InitRedis()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logServer.SetFileLevel("info")
 	go server.NewTcpServer(ctx)
 	for {
 		select {

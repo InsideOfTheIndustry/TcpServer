@@ -3,3 +3,6 @@
 
 # 屏蔽配置文件
 **/config.json
+
+# 屏蔽配置文件
+**/config.yaml

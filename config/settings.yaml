@@ -1,22 +1,23 @@
 settings:
   application: 
-    ip: "0.0.0.0",  # ip地址
-	  port: "4001",  # 端口号
-	  configpath: "./log", #日志路由
-	tcpserver: 
-	  ip: "192.168.1.130", #tcp服务器的ip地址
-		port: "4000", # tcp服务器的端口
-	database: 
-		type: "mysql", #数据库类型 mysql..
-		user: "xxx", #用户名
-		password: "xxx", #密码
-		host: "xxx", #IP
-		port: "xxxx", #端口
-		dbName: "xxx", #数据库名
-		charset: "xxx", #编码方式
-		showsql: true, #是否显示数据库查询语句
-	redis: 
-    addr: "xxxx:xxx", #数据库地址
-		password: "xxxxx", #数据库连接密码
-		db: 0 #使用的数据库
+    ip: "0.0.0.0"  # ip地址
+    port: "4001"  # 端口号
+    configpath: "./log" #日志路由
+  tcpserver: 
+    ip: "192.168.1.130" #tcp服务器的ip地址
+    port: "4000" # tcp服务器的端口
+  database: 
+    type: "mysql" #数据库类型 mysql..
+    user: "xxx" #用户名
+    password: "xxx" #密码
+    host: "xxx" #IP
+    port: "xxxx" #端口
+    dbName: "xxx" #数据库名
+    charset: "xxx" #编码方式
+    showsql: true #是否显示数据库查询语句
+  redis: 
+    addr: "xxxx" #数据库地址
+    password: "xxxxx" #数据库连接密码
+    port: "xxxx" # 数据库端口
+    db: 0 #使用的数据库
 	

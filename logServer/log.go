@@ -57,9 +57,10 @@ func (t ChinaClock) Now() time.Time {
 	return time.Now().UTC().Add(8 * time.Hour)
 }
 
-func init() {
+func Setup(level string) {
 	logger = logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
+	SetFileLevel(level)
 }
 
 // newLogFileHook 创建日志文件相关的钩子

@@ -19,7 +19,7 @@ import (
 func TestRedis(t *testing.T) {
 	// 读取配置文件
 
-	config.Setup("config/settings.yaml")
+	config.Setup("../../../config/config.yaml")
 
 	redis.InitRedis()
 
@@ -30,5 +30,16 @@ func TestRedis(t *testing.T) {
 	userdao.SetVerificationCode("1121883342@qq.com", "你看看")
 	msg, _ := userdao.GetVerificationCode("1121883342@qq.com")
 	logServer.Info("数据为:%s", msg)
+
+	// filePath := "../../../config/config.yaml"
+	// file, err := os.OpenFile(filePath, os.O_RDONLY, os.ModePerm)
+	// if err != nil {
+	// 	logServer.Error("出现问题:%s", err.Error())
+	// }
+
+	// newreader := bufio.NewReader(file)
+
+	// text, _, _ := newreader.ReadLine()
+	// logServer.Info("读取到的文件是:%s", text)
 
 }

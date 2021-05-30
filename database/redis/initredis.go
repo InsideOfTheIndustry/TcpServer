@@ -27,7 +27,7 @@ var RedisClient *RedisEngine
 func InitRedis() {
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     config.RedisConfig.Addr,
+		Addr:     config.RedisConfig.Addr + ":" + config.RedisConfig.Port,
 		Password: config.RedisConfig.Password,
 		DB:       config.RedisConfig.Db,
 	})
