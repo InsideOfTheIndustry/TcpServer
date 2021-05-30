@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	config.Setup("config/settings.yaml")
+	config.Setup("./config/config.yaml")
 
 	xormdatabase.InitXormEngine()
 	redisdatabase.InitRedis()

@@ -12,6 +12,7 @@ package config
 import (
 	"log"
 
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	"github.com/spf13/viper"
 )
 
@@ -24,6 +25,7 @@ func Setup(path string) {
 	settingCfg := viper.New()
 	settingCfg.SetConfigFile(path)
 	if err := settingCfg.ReadInConfig(); err != nil {
+		logServer.Error("配置文件读取失败:%s", err.Error())
 		log.Panic("读取配置文件失败")
 		panic("读取配置文件失败")
 	}

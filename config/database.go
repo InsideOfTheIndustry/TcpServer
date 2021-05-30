@@ -35,14 +35,17 @@ var DatabaseConfig = new(Database)
 type Redis struct {
 	Addr     string
 	Password string
+	Port     string
 	Db       int
 }
 
 func InitRedis(cfg *viper.Viper) *Redis {
+
 	return &Redis{
-		Addr:     viper.GetString("addr"),
-		Password: viper.GetString("password"),
-		Db:       viper.GetInt("db"),
+		Addr:     cfg.GetString("addr"),
+		Password: cfg.GetString("password"),
+		Db:       cfg.GetInt("db"),
+		Port:     cfg.GetString("port"),
 	}
 }
 
