@@ -66,7 +66,7 @@ func NewTcpServer(ctx context.Context) {
 	}
 	logServer.Info("成功建立Tcp服务器")
 
-	tcpserver := TcpServer{
+	tcpserver := &TcpServer{
 		addr:           addr,
 		ctx:            tcpServerCtx,
 		cancel:         tcpServerCancel,
@@ -90,7 +90,6 @@ func (tcpserver *TcpServer) accept() {
 			// 进行通信 包括转发信息等
 			logServer.Info("监听到连接：ip为(%s)", connect.RemoteAddr())
 			go tcpserver.chattingWithConnect(*connect)
-
 		}
 	}
 
