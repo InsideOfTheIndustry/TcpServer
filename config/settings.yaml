@@ -20,4 +20,3 @@ settings:
     password: "xxxxx" #数据库连接密码
     port: "xxxx" # 数据库端口
     db: 0 #使用的数据库
-	
