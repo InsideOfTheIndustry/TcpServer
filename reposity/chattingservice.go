@@ -18,7 +18,7 @@ import (
 // UserService 用户领域服务
 type UserService struct {
 	ChattingReposity     // 聊天基本存储库
-	ChttingCacheReposity // 缓存库
+	ChatingCacheReposity // 缓存库
 }
 
 // IfExistUser 判断用户是否存在
@@ -36,7 +36,7 @@ func (us UserService) IfExistUser(useraccount int64) (bool, error) {
 
 // IfTokenSame判断token是否存在且相同
 func (us UserService) IfTokenSameAndNotExpired(useraccount int64, token string) (bool, error) {
-	tokencache, err := us.ChttingCacheReposity.GetToken(useraccount)
+	tokencache, err := us.ChatingCacheReposity.GetToken(useraccount)
 	if err != nil {
 		logServer.Error("读取缓存失败:%s", err.Error())
 		return false, err

@@ -16,6 +16,6 @@ type ChattingReposity interface {
 }
 
 // ChttingCacheReposity 聊天缓存库
-type ChttingCacheReposity interface {
+type ChatingCacheReposity interface {
 	GetToken(useraccount int64) (string, error) // token 是否存在是否与用户提供的相同
 }

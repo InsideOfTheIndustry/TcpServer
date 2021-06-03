@@ -16,6 +16,7 @@ type Application struct {
 	Ip         string
 	Port       string
 	ConfigPath string
+	JwtKey     string
 }
 
 func InitApplication(cfg *viper.Viper) *Application {
@@ -23,6 +24,7 @@ func InitApplication(cfg *viper.Viper) *Application {
 		Ip:         cfg.GetString("ip"),
 		Port:       cfg.GetString("port"),
 		ConfigPath: cfg.GetString("configpath"),
+		JwtKey:     cfg.GetString("jwtkey"),
 	}
 }
 

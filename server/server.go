@@ -33,11 +33,11 @@ type TcpServer struct {
 	listener       net.TCPListener        // tcp监听器
 	ctx            context.Context        // 上下文
 	cancel         context.CancelFunc     // 退出回调
-	friendmakelist []friendmakeinfo
+	friendMakeList []friendMakeInfo
 }
 
-// friendmakeinfo 交友信息
-type friendmakeinfo struct {
+// friendMakeInfo 交友信息
+type friendMakeInfo struct {
 	launcher   int64  //发起者
 	accepter   int64  // 接受者
 	randomcode string // 随机验证码
@@ -73,7 +73,7 @@ func NewTcpServer(ctx context.Context) {
 		listener:       *listener,
 		conn:           make(map[string]net.TCPConn),
 		connectionpool: sync.Map{},
-		friendmakelist: make([]friendmakeinfo, 0),
+		friendMakeList: make([]friendMakeInfo, 0),
 	}
 	go tcpserver.accept()
 	go tcpserver.monitor()
@@ -119,7 +119,7 @@ func (tcpserver *TcpServer) chattingWithConnect(connect net.TCPConn) {
 		count, err := connect.Read(receivedData)
 
 		if err != nil {
-			logServer.Error("接收数据失败：（%）", err.Error())
+			logServer.Error("接收数据失败：（%s）", err.Error())
 			logServer.Info("关闭此连接...")
 			connect.Close()
 			return
@@ -142,11 +142,11 @@ func (tcpserver *TcpServer) chattingWithConnect(connect net.TCPConn) {
 func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, conn *net.TCPConn) {
 	var service = reposity.UserService{
 		ChattingReposity:     xormuser.UserRepository{XormEngine: xormdatabase.DBEngine},
-		ChttingCacheReposity: redisuser.UserCacheRepository{RedisEngine: redisdatabase.RedisClient},
+		ChatingCacheReposity: redisuser.UserCacheRepository{RedisEngine: redisdatabase.RedisClient},
 	}
 	useraccount, err := strconv.ParseInt(receiveMessage.Sender, 10, 64)
 	if err != nil {
-		logServer.Error("用户解析失败:%s", err.Error())
+		logServer.Error("用户解析失败: %s", err.Error())
 		conn.Close()
 		return
 	}

@@ -12,13 +12,12 @@ package jwt
 import (
 	"time"
 
+	"github.com/InsideOfTheIndustry/TcpServe/config"
 	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	"github.com/dgrijalva/jwt-go"
 )
 
-const (
-	SECRETKEY = "2139ajfhsremnsfafar"
-)
+var SECRETKEY = config.ApplicationConfig.JwtKey
 
 // UserClaim 用户token格式
 type UserClaim struct {

@@ -106,7 +106,7 @@ func (tcpserver *TcpServer) LaunchFrienRequest(receiveMessage Message, conn *net
 	accepterint, _ := strconv.ParseInt(receiveMessage.Receiver, 10, 64)
 
 	// 目前只支持在线添加好友 首先将一个请求添加进好友交友队列
-	var friendmake = friendmakeinfo{
+	var friendmake = friendMakeInfo{
 		launcher:   launcherint,
 		accepter:   accepterint,
 		randomcode: receiveMessage.Sender + receiveMessage.Receiver,
@@ -124,7 +124,7 @@ func (tcpserver *TcpServer) LaunchFrienRequest(receiveMessage Message, conn *net
 	// 返回发送情况
 	success := tcpserver.SendMessageToReceiver(message, conn, FriendMakeInfoSendSuccess, FriendMakeInfoSendFail)
 	if success {
-		tcpserver.friendmakelist = append(tcpserver.friendmakelist, friendmake)
+		tcpserver.friendMakeList = append(tcpserver.friendMakeList, friendmake)
 	}
 }
 
@@ -135,7 +135,7 @@ func (tcpserver *TcpServer) AcceptFrienRequest(service reposity.UserService, rec
 
 	var friendmakeinfopo = -1
 	logServer.Info("收到接受好友请求信息。")
-	for i, v := range tcpserver.friendmakelist {
+	for i, v := range tcpserver.friendMakeList {
 		if v.randomcode == receiveMessage.Message && v.launcher == launcherint && v.accepter == accepterint {
 			success, _ := service.ChattingReposity.SetFriend(launcherint, accepterint)
 			if success {
@@ -156,7 +156,7 @@ func (tcpserver *TcpServer) AcceptFrienRequest(service reposity.UserService, rec
 
 	// 对好友添加列表进行删除
 	if friendmakeinfopo != -1 {
-		tcpserver.friendmakelist = append(tcpserver.friendmakelist[:friendmakeinfopo], tcpserver.friendmakelist[friendmakeinfopo+1:]...)
+		tcpserver.friendMakeList = append(tcpserver.friendMakeList[:friendmakeinfopo], tcpserver.friendMakeList[friendmakeinfopo+1:]...)
 	}
 }
 
@@ -167,7 +167,7 @@ func (tcpserver *TcpServer) RejectFrienRequest(receiveMessage Message, conn *net
 
 	var friendmakeinfopo = -1
 
-	for i, v := range tcpserver.friendmakelist {
+	for i, v := range tcpserver.friendMakeList {
 		if v.randomcode == receiveMessage.Message && v.launcher == launcherint && v.accepter == accepterint {
 
 			var message = Message{
@@ -187,6 +187,6 @@ func (tcpserver *TcpServer) RejectFrienRequest(receiveMessage Message, conn *net
 
 	// 对好友添加列表进行删除
 	if friendmakeinfopo != -1 {
-		tcpserver.friendmakelist = append(tcpserver.friendmakelist[:friendmakeinfopo], tcpserver.friendmakelist[friendmakeinfopo+1:]...)
+		tcpserver.friendMakeList = append(tcpserver.friendMakeList[:friendmakeinfopo], tcpserver.friendMakeList[friendmakeinfopo+1:]...)
 	}
 }

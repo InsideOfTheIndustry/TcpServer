@@ -53,9 +53,12 @@ var fixFields = make(logrus.Fields, 0)
 type ChinaClock struct{}
 
 // Now 查询当前时间
-func (t ChinaClock) Now() time.Time {
+func (t *ChinaClock) Now() time.Time {
 	return time.Now().UTC().Add(8 * time.Hour)
 }
+
+// 初始化时钟
+var clock ChinaClock
 
 func Setup(level string) {
 	logger = logrus.New()
@@ -68,7 +71,7 @@ func Setup(level string) {
 func newLogFileHook(logDir string, logLevel logrus.Level) logrus.Hook {
 	writer, err := rotatelogs.New(
 		logDir+"/"+logDefaultConfig.AppName+"_%Y-%m-%d_%H.log",
-		rotatelogs.WithClock(ChinaClock{}),
+		rotatelogs.WithClock(&ChinaClock{}),
 		rotatelogs.WithRotationTime(logDefaultConfig.RotationIntervalTime),    // 设置日志分割的时间
 		rotatelogs.WithRotationCount(logDefaultConfig.MaxRotationRemainCount), // 设置文件清理前最多保存的个数
 		// rotatelogs.WithMaxAge(time.Hour*24),        // 设置文件清理前的最长保存时间(WithMaxAge和WithRotationCount二者只能设置一个)
@@ -123,7 +126,7 @@ func Debug(format string, v ...interface{}) {
 		format = "[" + path.Base(filepath) + ":" + strconv.Itoa(line) + "] " + format
 	}
 
-	now := time.Now().UTC().Add(8 * time.Hour)
+	now := clock.Now()
 	if logger != nil {
 		if len(v) == 0 {
 			logger.WithTime(now).WithFields(fixFields).Debug(format)
@@ -142,7 +145,7 @@ func Info(format string, v ...interface{}) {
 		format = "[" + path.Base(filepath) + ":" + strconv.Itoa(line) + "] " + format
 	}
 
-	now := time.Now().UTC().Add(8 * time.Hour)
+	now := clock.Now()
 	if logger != nil {
 		if len(v) == 0 {
 			logger.WithTime(now).WithFields(fixFields).Info(format)
@@ -161,7 +164,7 @@ func Warning(format string, v ...interface{}) {
 		format = "[" + path.Base(filepath) + ":" + strconv.Itoa(line) + "] " + format
 	}
 
-	now := time.Now().UTC().Add(8 * time.Hour)
+	now := clock.Now()
 	if logger != nil {
 		if len(v) == 0 {
 			logger.WithTime(now).WithFields(fixFields).Warn(format)
@@ -180,7 +183,7 @@ func Error(format string, v ...interface{}) {
 		format = "[" + path.Base(filepath) + ":" + strconv.Itoa(line) + "] " + format
 	}
 
-	now := time.Now().UTC().Add(8 * time.Hour)
+	now := clock.Now()
 	if logger != nil {
 		if len(v) == 0 {
 			logger.WithTime(now).WithFields(fixFields).Error(format)
@@ -199,7 +202,7 @@ func Fatal(format string, v ...interface{}) {
 		format = "[" + path.Base(filepath) + ":" + strconv.Itoa(line) + "] " + format
 	}
 
-	now := time.Now().UTC().Add(8 * time.Hour)
+	now := clock.Now()
 	if logger != nil {
 		if len(v) == 0 {
 			logger.WithTime(now).WithFields(fixFields).Fatal(format)

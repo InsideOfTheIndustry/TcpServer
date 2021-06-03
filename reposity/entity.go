@@ -9,7 +9,7 @@
 
 package reposity
 
-// 用户实体
+// UserInfo 用户实体
 type UserInfo struct {
 	UserAccount  int64  // 用户账号
 	UserEmail    string // 邮箱号
@@ -21,7 +21,7 @@ type UserInfo struct {
 	UserSex      int64  // 用户性别
 }
 
-// 朋友间的相互联系
+// UserFriend 朋友间的相互联系
 type UserFriend struct {
 	Launcher int64 // 好友发起者
 	Accepter int64 // 好友接受者
