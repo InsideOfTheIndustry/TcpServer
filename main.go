@@ -29,7 +29,7 @@ func main() {
 	}
 	redisdatabase.InitRedis()                               // 初始化reds
 	ctx, cancel := context.WithCancel(context.Background()) // 全局上下文控制
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*1000*10)
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	go server.NewTcpServer(ctx) // 启动tcp服务
 
