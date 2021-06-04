@@ -83,15 +83,27 @@ func NewTcpServer(ctx context.Context) {
 func (tcpserver *TcpServer) accept() {
 	logServer.Info("开启Tcp监听服务...")
 	for {
-		connect, err := tcpserver.listener.AcceptTCP()
-		if err != nil {
-			logServer.Error("有连接连接至服务器失败（%s）", err.Error())
-		} else {
-			// 进行通信 包括转发信息等
-			logServer.Info("监听到连接：ip为(%s)", connect.RemoteAddr())
-			go tcpserver.chattingWithConnect(*connect)
+		select {
+		case <-tcpserver.ctx.Done():
+			tcpserver.listener.Close()
+			logServer.Info("tcpserver停止监听")
+			tcpserver.cancel()
+			goto stopTcpserverlistener
+		default:
+			connect, err := tcpserver.listener.AcceptTCP()
+			if err != nil {
+				logServer.Error("有连接连接至服务器失败（%s）", err.Error())
+			} else {
+				// 进行通信 包括转发信息等
+				logServer.Info("监听到连接：ip为(%s)", connect.RemoteAddr())
+				go tcpserver.chattingWithConnect(*connect)
+			}
+
 		}
+
 	}
+stopTcpserverlistener:
+	logServer.Info("tcpserver退出监听服务...")
 
 }
 
@@ -102,14 +114,14 @@ func (tcpserver *TcpServer) monitor() {
 		select {
 		case <-tcpserver.ctx.Done():
 			tcpserver.listener.Close()
-			logServer.Info("tcpserver停止监听")
+			logServer.Info("tcpserver停止监控")
 			tcpserver.cancel()
-			goto stopTcpserver
+			goto stopTcpservermonitor
 
 		}
 	}
-stopTcpserver:
-	logServer.Info("Tcp服务器关闭...")
+stopTcpservermonitor:
+	logServer.Info("tcpserver退出监控服务...")
 }
 
 //chattingWithConnect 和具体的连接进行通信

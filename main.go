@@ -20,20 +20,17 @@ import (
 )
 
 func main() {
-	config.Setup("./config/config.yaml")
-	logServer.Setup("info")
-	xormdatabase.InitXormEngine()
-	redisdatabase.InitRedis()
-	ctx, cancel := context.WithCancel(context.Background())
+
+	config.Setup("./config/config.yaml")                    // 读取配置文件
+	logServer.Setup("info")                                 // 设置日志等级
+	xormdatabase.InitXormEngine()                           // 初始化xorm引擎
+	redisdatabase.InitRedis()                               // 初始化reds
+	ctx, cancel := context.WithCancel(context.Background()) // 全局上下文控制
 	defer cancel()
-	go server.NewTcpServer(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			goto stopposition
-		}
-	}
-stopposition:
+	go server.NewTcpServer(ctx) // 启动tcp服务
+
+	<-ctx.Done()
+
 	logServer.Info("Tcp服务停止")
 
 }
