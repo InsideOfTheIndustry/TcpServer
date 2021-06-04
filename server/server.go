@@ -84,7 +84,9 @@ func (tcpserver *TcpServer) close() {
 	tcpserver.listener.Close()
 	tcpserver.cancel()
 	for i := range tcpserver.conn {
-		tcpserver.conn[i].Close()
+		if err := tcpserver.conn[i].Close(); err != nil {
+			logServer.Error("conn 断开连接失败:%s", err.Error())
+		}
 	}
 	logServer.Info("Tcpserver停止服务...")
 }

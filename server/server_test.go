@@ -34,6 +34,4 @@ func TestNewtcp(t *testing.T) {
 	<-ctx.Done()
 
 	logServer.Info("Tcp服务停止")
-	for {
-	}
 }
