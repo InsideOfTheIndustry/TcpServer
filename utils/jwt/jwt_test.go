@@ -11,7 +11,7 @@ import (
 func TestParseToken(t *testing.T) {
 	logServer.Setup("info")                  // 设置日志等级
 	config.Setup("../../config/config.yaml") // 读取配置文件
-	// InitSecretkey()
+	InitSecretkey()
 	fmt.Println(config.ApplicationConfig)
 	fmt.Println(SECRETKEY)
 
