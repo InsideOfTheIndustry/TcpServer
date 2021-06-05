@@ -17,11 +17,13 @@ import (
 	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
 	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	"github.com/InsideOfTheIndustry/TcpServe/server"
+	"github.com/InsideOfTheIndustry/TcpServe/utils/jwt"
 )
 
 func main() {
 	logServer.Setup("info")              // 设置日志等级
 	config.Setup("./config/config.yaml") // 读取配置文件
+	jwt.InitSecretkey()                  // 初始化Scretkey
 
 	// 初始化xorm引擎
 	if err := xormdatabase.InitXormEngine(); err != nil {

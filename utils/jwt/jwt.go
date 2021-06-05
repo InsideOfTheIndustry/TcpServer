@@ -17,7 +17,11 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
-var SECRETKEY = config.ApplicationConfig.JwtKey
+func InitSecretkey() {
+	SECRETKEY = config.ApplicationConfig.JwtKey
+}
+
+var SECRETKEY string
 
 // UserClaim 用户token格式
 type UserClaim struct {
@@ -27,6 +31,7 @@ type UserClaim struct {
 
 // GenarateToken 生成token数据
 func GenarateToken(useraccount int64) (string, error) {
+
 	// 初始化一个自定义的claim
 	var expire = 60 * 60 * 24
 	userclaim := UserClaim{
@@ -49,6 +54,7 @@ func GenarateToken(useraccount int64) (string, error) {
 
 // ParseToken 解析token
 func ParseToken(tokenstring string) (*UserClaim, error) {
+
 	token, err := jwt.ParseWithClaims(tokenstring, &UserClaim{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(SECRETKEY), nil
 	})
