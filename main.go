@@ -31,7 +31,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background()) // 全局上下文控制
 	// ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*1000*10)
 	defer cancel()
-	go server.NewTcpServer(ctx) // 启动tcp服务
+	_, err := server.NewTcpServer(ctx) // 启动tcp服务
+	if err != nil {
+		logServer.Error("启动tcp服务失败:%s", err.Error())
+		return
+	}
 
 	<-ctx.Done()
 

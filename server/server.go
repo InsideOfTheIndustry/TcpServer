@@ -49,7 +49,7 @@ type connection struct {
 	time time.Timer  // 定时器
 }
 
-func NewTcpServer(ctx context.Context) {
+func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 
 	tcpServerCtx, tcpServerCancel := context.WithCancel(ctx)
 
@@ -62,7 +62,7 @@ func NewTcpServer(ctx context.Context) {
 	if err != nil {
 		logServer.Error("建立tcp监听失败，失败原因为(%s)", err.Error())
 		tcpServerCancel()
-		return
+		return nil, err
 	}
 	logServer.Info("成功建立Tcp服务器")
 
@@ -77,6 +77,7 @@ func NewTcpServer(ctx context.Context) {
 	}
 	go tcpserver.accept()
 	go tcpserver.monitor()
+	return tcpserver, nil
 }
 
 // close tcp关闭时进行的操作
