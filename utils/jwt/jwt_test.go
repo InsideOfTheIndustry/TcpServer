@@ -9,8 +9,8 @@ import (
 )
 
 func TestParseToken(t *testing.T) {
-	logServer.Setup("info")                   // 设置日志等级
-	config.Setup("../../config/setting.yaml") // 读取配置文件
+	logServer.Setup("info")                    // 设置日志等级
+	config.Setup("../../config/settings.yaml") // 读取配置文件
 	InitSecretkey()
 	fmt.Println(config.ApplicationConfig)
 	fmt.Println(SECRETKEY)
