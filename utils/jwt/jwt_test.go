@@ -15,7 +15,7 @@ func TestParseToken(t *testing.T) {
 	fmt.Println(config.ApplicationConfig)
 	fmt.Println(SECRETKEY)
 
-	if SECRETKEY != "" {
+	if SECRETKEY != "11111" {
 		t.Fail()
 	}
 	tokenstring, err := GenarateToken(100009)
