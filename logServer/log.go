@@ -47,7 +47,7 @@ var logDefaultConfig = LogConfig{
 var logger *logrus.Logger
 
 // fixFields 日志上报的固定信息域
-var fixFields = make(logrus.Fields, 0)
+var fixFields = make(logrus.Fields)
 
 // ChinaClock 中国时区时钟
 type ChinaClock struct{}

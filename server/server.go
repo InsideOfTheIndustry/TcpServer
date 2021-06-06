@@ -15,7 +15,6 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"time"
 
 	redisdatabase "github.com/InsideOfTheIndustry/TcpServe/database/redis"
 	redisuser "github.com/InsideOfTheIndustry/TcpServe/database/redis/user"
@@ -44,10 +43,10 @@ type friendMakeInfo struct {
 }
 
 // connection 用于建立心跳
-type connection struct {
-	conn net.TCPConn // 连接
-	time time.Timer  // 定时器
-}
+// type connection struct {
+// 	conn net.TCPConn // 连接
+// 	time time.Timer  // 定时器
+// }
 
 func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 
@@ -116,15 +115,8 @@ func (tcpserver *TcpServer) accept() {
 func (tcpserver *TcpServer) monitor() {
 	defer tcpserver.close()
 	logServer.Info("开启Tcp监控服务...")
-	for {
-		select {
-		case <-tcpserver.ctx.Done():
-			logServer.Info("tcpserver停止监控")
-			goto stopTcpserverlistener
-		}
 
-	}
-stopTcpserverlistener:
+	<-tcpserver.ctx.Done()
 	logServer.Info("tcpserver退出监控服务...")
 
 }

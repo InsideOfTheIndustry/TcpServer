@@ -23,7 +23,10 @@ func TestCreate(t *testing.T) {
 	config.Setup("config/settings.yaml")
 	// 测试数据库
 	var userdao = UserRepository{}
-	xormdatabase.InitXormEngine()
+	if err := xormdatabase.InitXormEngine(); err != nil {
+		t.Errorf("启动数据库失败:%s\n", err.Error())
+		t.Fail()
+	}
 	userdao.XormEngine = xormdatabase.DBEngine
 	var userinfo = reposity.UserInfo{
 		UserEmail:    "xxx2",
@@ -38,7 +41,10 @@ func TestCreate(t *testing.T) {
 	// users, err := userdao.Query(12313131)
 	ifre, err := userdao.QueryEmailIfAlreadyUse("12138")
 	friends, _ := userdao.QueryFriends(12138)
-	userdao.Update(&userinfo)
+	if err := userdao.Update(&userinfo); err != nil {
+		t.Errorf("更新数据失败:%s\n", err.Error())
+		t.Fail()
+	}
 
 	//logServer.Info("用户账号为:%v", account)
 	//logServer.Info("用户是否存在:%v,%v", *users, err)
