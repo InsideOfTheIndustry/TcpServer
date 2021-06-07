@@ -3,7 +3,7 @@ settings:
     ip: "0.0.0.0"  # ip地址
     port: "4001"  # 端口号
     configpath: "./log" #日志路由
-    jwtkey: "" # jwt鉴权
+    jwtkey: "11111" # jwt鉴权
   tcpserver: 
     ip: "192.168.1.130" #tcp服务器的ip地址
     port: "4000" # tcp服务器的端口

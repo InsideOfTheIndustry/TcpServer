@@ -15,7 +15,6 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	"time"
 
 	redisdatabase "github.com/InsideOfTheIndustry/TcpServe/database/redis"
 	redisuser "github.com/InsideOfTheIndustry/TcpServe/database/redis/user"
@@ -27,12 +26,12 @@ import (
 
 // Tcp服务器
 type TcpServer struct {
-	addr           net.TCPAddr            // 服务器地址
-	conn           map[string]net.TCPConn // 用户连接
-	connectionpool sync.Map               // 用户连接池
-	listener       net.TCPListener        // tcp监听器
-	ctx            context.Context        // 上下文
-	cancel         context.CancelFunc     // 退出回调
+	addr           net.TCPAddr        // 服务器地址
+	conn           []*net.TCPConn     // 用户连接
+	connectionpool sync.Map           // 用户连接池
+	listener       net.TCPListener    // tcp监听器
+	ctx            context.Context    // 上下文
+	cancel         context.CancelFunc // 退出回调
 	friendMakeList []friendMakeInfo
 }
 
@@ -44,12 +43,12 @@ type friendMakeInfo struct {
 }
 
 // connection 用于建立心跳
-type connection struct {
-	conn net.TCPConn // 连接
-	time time.Timer  // 定时器
-}
+// type connection struct {
+// 	conn net.TCPConn // 连接
+// 	time time.Timer  // 定时器
+// }
 
-func NewTcpServer(ctx context.Context) {
+func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 
 	tcpServerCtx, tcpServerCancel := context.WithCancel(ctx)
 
@@ -62,7 +61,7 @@ func NewTcpServer(ctx context.Context) {
 	if err != nil {
 		logServer.Error("建立tcp监听失败，失败原因为(%s)", err.Error())
 		tcpServerCancel()
-		return
+		return nil, err
 	}
 	logServer.Info("成功建立Tcp服务器")
 
@@ -71,12 +70,25 @@ func NewTcpServer(ctx context.Context) {
 		ctx:            tcpServerCtx,
 		cancel:         tcpServerCancel,
 		listener:       *listener,
-		conn:           make(map[string]net.TCPConn),
+		conn:           make([]*net.TCPConn, 0),
 		connectionpool: sync.Map{},
 		friendMakeList: make([]friendMakeInfo, 0),
 	}
 	go tcpserver.accept()
 	go tcpserver.monitor()
+	return tcpserver, nil
+}
+
+// close tcp关闭时进行的操作
+func (tcpserver *TcpServer) close() {
+	tcpserver.listener.Close()
+	tcpserver.cancel()
+	for i := range tcpserver.conn {
+		if err := tcpserver.conn[i].Close(); err != nil {
+			logServer.Error("conn 断开连接失败:%s", err.Error())
+		}
+	}
+	logServer.Info("Tcpserver停止服务...")
 }
 
 // accept tcp监听程序
@@ -85,36 +97,34 @@ func (tcpserver *TcpServer) accept() {
 	for {
 		connect, err := tcpserver.listener.AcceptTCP()
 		if err != nil {
-			logServer.Error("有连接连接至服务器失败（%s）", err.Error())
+			logServer.Error("连接情况异常:（%s）", err.Error())
+			return
+
 		} else {
 			// 进行通信 包括转发信息等
 			logServer.Info("监听到连接：ip为(%s)", connect.RemoteAddr())
-			go tcpserver.chattingWithConnect(*connect)
+			tcpserver.conn = append(tcpserver.conn, connect)
+			go tcpserver.chattingWithConnect(connect)
 		}
+
 	}
 
 }
 
-// monitor 监控
+// monitor tcp监控程序
 func (tcpserver *TcpServer) monitor() {
-	logServer.Info("开启Tcp监控服务")
-	for {
-		select {
-		case <-tcpserver.ctx.Done():
-			tcpserver.listener.Close()
-			logServer.Info("tcpserver停止监听")
-			tcpserver.cancel()
-			goto stopTcpserver
+	defer tcpserver.close()
+	logServer.Info("开启Tcp监控服务...")
 
-		}
-	}
-stopTcpserver:
-	logServer.Info("Tcp服务器关闭...")
+	<-tcpserver.ctx.Done()
+	logServer.Info("tcpserver退出监控服务...")
+
 }
 
 //chattingWithConnect 和具体的连接进行通信
-func (tcpserver *TcpServer) chattingWithConnect(connect net.TCPConn) {
+func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 	for {
+
 		var receivedData = make([]byte, 1024*2)
 		count, err := connect.Read(receivedData)
 
@@ -131,7 +141,7 @@ func (tcpserver *TcpServer) chattingWithConnect(connect net.TCPConn) {
 		if err != nil {
 			logServer.Error("解析数据失败：（%s）", err.Error())
 		} else {
-			tcpserver.dealWithMessage(ReceivedStruct, &connect)
+			tcpserver.dealWithMessage(ReceivedStruct, connect)
 		}
 
 	}

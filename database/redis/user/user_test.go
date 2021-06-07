@@ -27,7 +27,7 @@ func TestRedis(t *testing.T) {
 		redis.RedisClient,
 	}
 
-	userdao.SetVerificationCode("1121883342@qq.com", "你看看")
+	_ = userdao.SetVerificationCode("1121883342@qq.com", "你看看")
 	msg, _ := userdao.GetVerificationCode("1121883342@qq.com")
 	logServer.Info("数据为:%s", msg)
 

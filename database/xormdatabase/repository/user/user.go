@@ -87,51 +87,40 @@ func (ud UserRepository) QueryFriends(useraccount int64) (reposity.FriendInfo, e
 	}
 
 	// 查询朋友信息时 需要从发起者和接收者两处查询
-	err := ud.Where("launcher = ?", useraccount).Find(&friendlauchers)
-	if err != nil {
-		logServer.Error("查询出现错误:(%s)", err.Error())
-		return friendsinfo, err
-	}
-	err = ud.Where("accepter = ?", useraccount).Find(&friendaccepters)
-	if err != nil {
+	if err := ud.Where("launcher = ?", useraccount).Find(&friendlauchers); err != nil {
 		logServer.Error("查询出现错误:(%s)", err.Error())
 		return friendsinfo, err
 	}
 
-	var friendsinfolist = make([]reposity.UserInfo, 0)
-	// 查询朋友的具体信息
+	if err := ud.Where("accepter = ?", useraccount).Find(&friendaccepters); err != nil {
+		logServer.Error("查询出现错误:(%s)", err.Error())
+		return friendsinfo, err
+	}
+
+	// 获取被定义为接受者的朋友
+	var accepter = make([]int64, 0, len(friendlauchers))
 	for i := range friendlauchers {
-		var friendinfo = UserInfo{}
-		ud.Where("useraccount = ?", friendlauchers[i].Launcher).Get(&friendinfo)
-		var entityuserinfo = reposity.UserInfo{
-			UserAccount:  friendinfo.UserAccount,
-			UserEmail:    friendinfo.UserEmail,
-			UserName:     friendinfo.UserName,
-			Signature:    friendinfo.Signature,
-			Avatar:       friendinfo.Avatar,
-			UserPassword: friendinfo.UserPassword,
-			UserAge:      friendinfo.UserAge,
-			UserSex:      friendinfo.UserSex,
-		}
-		friendsinfolist = append(friendsinfolist, entityuserinfo)
+		accepter = append(accepter, friendlauchers[i].Accepter)
+	}
+	// 获取定义为发起者的朋友
+	var launcher = make([]int64, 0, len(friendaccepters))
+	for i := range friendaccepters {
+		launcher = append(launcher, friendaccepters[i].Launcher)
 	}
 
-	for i := range friendaccepters {
-		var friendinfo = UserInfo{}
-		ud.Where("useraccount = ?", friendaccepters[i].Accepter).Get(&friendinfo)
-		var entityuserinfo = reposity.UserInfo{
-			UserAccount:  friendinfo.UserAccount,
-			UserEmail:    friendinfo.UserEmail,
-			UserName:     friendinfo.UserName,
-			Signature:    friendinfo.Signature,
-			Avatar:       friendinfo.Avatar,
-			UserPassword: friendinfo.UserPassword,
-			UserAge:      friendinfo.UserAge,
-			UserSex:      friendinfo.UserSex,
-		}
-		friendsinfolist = append(friendsinfolist, entityuserinfo)
+	var friendsinfolistaccepter = make([]reposity.UserInfo, 0, len(accepter))
+	var friendsinfolistlauncher = make([]reposity.UserInfo, 0, len(launcher))
+
+	if err := ud.In("useraccount", accepter).Find(&friendsinfolistaccepter); err != nil {
+		logServer.Error("查询朋友信息出错:%s", err.Error())
+		return friendsinfo, err
 	}
-	friendsinfo.Friends = friendsinfolist
+	if err := ud.In("useraccount", launcher).Find(&friendsinfolistlauncher); err != nil {
+		logServer.Error("查询朋友信息出错:%s", err.Error())
+		return friendsinfo, err
+	}
+	friendsinfo.Friends = append(friendsinfo.Friends, friendsinfolistaccepter...)
+	friendsinfo.Friends = append(friendsinfo.Friends, friendsinfolistlauncher...)
 	return friendsinfo, nil
 
 }

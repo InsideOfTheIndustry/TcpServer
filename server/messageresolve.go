@@ -62,7 +62,6 @@ func (tcpserver *TcpServer) SendMessageToReceiver(receiveMessage Message, conn *
 			logServer.Info("用户:(%s)不在线", receiveMessage.Receiver)
 			// 回复一个发送失败的信息
 			SendReplyMessage(conn, receiveMessage, FailStatus)
-			delete(tcpserver.conn, receiveMessage.Receiver)
 			return false
 		} else {
 			SendReplyMessage(conn, receiveMessage, successStatus)
