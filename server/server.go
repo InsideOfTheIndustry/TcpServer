@@ -15,6 +15,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	redisdatabase "github.com/InsideOfTheIndustry/TcpServe/database/redis"
 	redisuser "github.com/InsideOfTheIndustry/TcpServe/database/redis/user"
@@ -33,6 +34,14 @@ type TcpServer struct {
 	ctx            context.Context    // 上下文
 	cancel         context.CancelFunc // 退出回调
 	friendMakeList []friendMakeInfo
+}
+
+// ConnectIdentify 连接情况
+type ConnectIdentify struct {
+	connect         *net.TCPConn // 连接情况
+	ticker          *time.Ticker // 计时器
+	ifinconnectpool bool         // 是否加入了连接池
+	useraccount     string       // 用户账号
 }
 
 // friendMakeInfo 交友信息
@@ -123,10 +132,19 @@ func (tcpserver *TcpServer) monitor() {
 
 //chattingWithConnect 和具体的连接进行通信
 func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
+
+	// 定义是否是已加入连接池
+	// var ifaddtoconnctpool = false
+	var connectidentify = ConnectIdentify{
+		connect:         connect,
+		ifinconnectpool: false,
+		ticker:          time.NewTicker(30 * time.Second),
+		useraccount:     "unlogined",
+	}
 	for {
 
 		var receivedData = make([]byte, 1024*2)
-		count, err := connect.Read(receivedData)
+		count, err := connectidentify.connect.Read(receivedData)
 
 		if err != nil {
 			logServer.Error("接收数据失败：（%s）", err.Error())
@@ -209,4 +227,10 @@ func SendReplyMessage(conn *net.TCPConn, message Message, receiveStatus MessageT
 	if err != nil {
 		logServer.Error("发送回复信息失败：(%s)", err.Error())
 	}
+}
+
+// monitorconnect 监控连接状态 用于设置超时和垃圾连接
+func (ci *ConnectIdentify) monitorconnect() {
+	<-ci.ticker.C
+	logServer.Info("连接已超时,断开此连接,用户号为:%s,用户登录状态为:%v", ci.useraccount, ci.ifinconnectpool)
 }
