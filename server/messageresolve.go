@@ -13,17 +13,19 @@ import (
 	"encoding/json"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	"github.com/InsideOfTheIndustry/TcpServe/reposity"
 )
 
 // NewUserLoginIn 新连接加入
-func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useraccount int64, receiveMessage Message, conn *net.TCPConn) {
+func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useraccount int64, receiveMessage Message, connectidentify *ConnectIdentify) {
+
 	// 检查是否存在用户
 	exist, err := service.IfExistUser(useraccount)
 	if err != nil || !exist {
-		conn.Close()
+		connectidentify.connect.Close()
 		return
 	}
 	// 检查当前是否在线
@@ -37,7 +39,9 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 	}
 
 	// 如果重复登录，需要对其进行切换
-	tcpserver.connectionpool.Store(receiveMessage.Sender, conn) // 将连接加入连接池
+	tcpserver.connectionpool.Store(receiveMessage.Sender, connectidentify.connect) // 将连接加入连接池
+	connectidentify.ifinconnectpool = true
+	connectidentify.ticker = time.NewTicker(30 * time.Second)
 	logServer.Info("用户：(%s)加入了聊天。", receiveMessage.Sender)
 	//TODO: 若添加离线信息的话 需要先从数据库读取数据
 }
@@ -78,21 +82,37 @@ func (tcpserver *TcpServer) SendMessageToReceiver(receiveMessage Message, conn *
 	}
 }
 
-func (tcpserver *TcpServer) HeartBeatMessage() {
+// HeartBeatMessage 心跳信息
+func (tcpserver *TcpServer) HeartBeatMessage(receiveMessage Message, connectidentify *ConnectIdentify) {
 	logServer.Info("接收到心跳信息...")
+	if receiveMessage.Sender != connectidentify.useraccount {
+		logServer.Info("心跳发送者account不匹配，期望:%s, 实际发送者为:%s", connectidentify.useraccount, receiveMessage.Sender)
+		if err := Gracefulclose(connectidentify.connect, "您的心跳异常"); err != nil {
+			logServer.Error("心跳连接异常,连接关闭失败:%s", err.Error())
+			return
+		}
+
+		tcpserver.connectionpool.Delete(receiveMessage.Sender)
+		logServer.Info("用户：（%s）断开连接", receiveMessage.Sender)
+	}
+
+	connectidentify.ticker = time.NewTicker(30 * time.Second)
+
 }
 
 // CloseConnect 关闭连接做的事
-func (tcpserver *TcpServer) CloseConnect(receiveMessage Message, conn *net.TCPConn) {
-	senderconninterface, ok := tcpserver.connectionpool.Load(receiveMessage.Receiver)
+func (tcpserver *TcpServer) CloseConnect(receiveMessage Message, conn *net.TCPConn, message string) {
+	senderconninterface, ok := tcpserver.connectionpool.Load(receiveMessage.Sender)
 	if ok {
 		senderconn := senderconninterface.(*net.TCPConn)
-		err := senderconn.Close()
-		if err != nil {
-			logServer.Error("关闭连接出现错误(%s)", err.Error())
+
+		// gracefule close 断开前向对方发送通知
+		if err := Gracefulclose(senderconn, message); err != nil {
+			logServer.Error("关闭连接失败:%s", err.Error())
 			return
 		}
-		tcpserver.connectionpool.Delete(receiveMessage.Receiver)
+
+		tcpserver.connectionpool.Delete(receiveMessage.Sender)
 		logServer.Info("用户：（%s）断开连接", receiveMessage.Sender)
 	} else {
 		conn.Close()
@@ -188,4 +208,31 @@ func (tcpserver *TcpServer) RejectFrienRequest(receiveMessage Message, conn *net
 	if friendmakeinfopo != -1 {
 		tcpserver.friendMakeList = append(tcpserver.friendMakeList[:friendmakeinfopo], tcpserver.friendMakeList[friendmakeinfopo+1:]...)
 	}
+}
+
+// Gracefulclose 优雅断开连接 断开前发送信息
+func Gracefulclose(conn *net.TCPConn, message string) error {
+	sendclosemessage := Message{
+		MessageType: CloseConnect,
+		Message:     message,
+	}
+	sendmessagebyte, err := json.Marshal(sendclosemessage)
+	if err != nil {
+		logServer.Error("反序列化json数据失败:%s", err.Error())
+		if err := conn.Close(); err != nil {
+			logServer.Error("关闭连接出现错误(%s)", err.Error())
+			return err
+		}
+		return err
+	}
+
+	if _, err := conn.Write(sendmessagebyte); err != nil {
+		logServer.Error("发送信息失败:%s", err.Error())
+	}
+	if err := conn.Close(); err != nil {
+		logServer.Error("关闭连接出现错误(%s)", err.Error())
+		return err
+	}
+
+	return nil
 }

@@ -141,6 +141,10 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 		ticker:          time.NewTicker(30 * time.Second),
 		useraccount:     "unlogined",
 	}
+
+	// 开启计时器
+	go connectidentify.monitorconnect()
+
 	for {
 
 		var receivedData = make([]byte, 1024*2)
@@ -149,7 +153,7 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 		if err != nil {
 			logServer.Error("接收数据失败：（%s）", err.Error())
 			logServer.Info("关闭此连接...")
-			connect.Close()
+			connectidentify.connect.Close()
 			return
 		}
 
@@ -159,7 +163,7 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 		if err != nil {
 			logServer.Error("解析数据失败：（%s）", err.Error())
 		} else {
-			tcpserver.dealWithMessage(ReceivedStruct, connect)
+			tcpserver.dealWithMessage(ReceivedStruct, &connectidentify)
 		}
 
 	}
@@ -167,11 +171,14 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 }
 
 //dealWithMessage tcp 信息转发 及 信息处理
-func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, conn *net.TCPConn) {
+func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectidentify *ConnectIdentify) {
 	var service = reposity.UserService{
 		ChattingReposity:     xormuser.UserRepository{XormEngine: xormdatabase.DBEngine},
 		ChatingCacheReposity: redisuser.UserCacheRepository{RedisEngine: redisdatabase.RedisClient},
 	}
+
+	conn := connectidentify.connect
+
 	useraccount, err := strconv.ParseInt(receiveMessage.Sender, 10, 64)
 	if err != nil {
 		logServer.Error("用户解析失败: %s", err.Error())
@@ -194,13 +201,13 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, conn *net.TC
 	// 信息类型
 	switch receiveMessage.MessageType {
 	case FirstConnect: // 初次连接
-		tcpserver.NewUserLoginIn(service, useraccount, receiveMessage, conn)
+		tcpserver.NewUserLoginIn(service, useraccount, receiveMessage, connectidentify)
 	case SendMessage: // 发送信息
 		tcpserver.SendMessageToReceiver(receiveMessage, conn, SendInfoSuccess, UserNotOnline)
 	case HeartBeat: // 心跳服务
-		tcpserver.HeartBeatMessage()
+		tcpserver.HeartBeatMessage(receiveMessage, connectidentify)
 	case CloseConnect: // 关闭连接
-		tcpserver.CloseConnect(receiveMessage, conn)
+		tcpserver.CloseConnect(receiveMessage, conn, "已收到断开请求，正在断开...")
 	case SendFriendRequest: // 发送好友申请
 		tcpserver.LaunchFrienRequest(receiveMessage, conn)
 	case AcceptFriendRequest: // 接受好友申请
@@ -233,4 +240,5 @@ func SendReplyMessage(conn *net.TCPConn, message Message, receiveStatus MessageT
 func (ci *ConnectIdentify) monitorconnect() {
 	<-ci.ticker.C
 	logServer.Info("连接已超时,断开此连接,用户号为:%s,用户登录状态为:%v", ci.useraccount, ci.ifinconnectpool)
+	ci.connect.Close()
 }

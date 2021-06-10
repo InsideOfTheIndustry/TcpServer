@@ -8,38 +8,30 @@
 //
 package user
 
-import (
-	"testing"
+// func TestRedis(t *testing.T) {
+// 读取配置文件
 
-	"github.com/InsideOfTheIndustry/TcpServe/config"
-	"github.com/InsideOfTheIndustry/TcpServe/database/redis"
-	"github.com/InsideOfTheIndustry/TcpServe/logServer"
-)
+// config.Setup("../../../config/config.yaml")
 
-func TestRedis(t *testing.T) {
-	// 读取配置文件
+// redis.InitRedis()
 
-	config.Setup("../../../config/config.yaml")
+// var userdao = UserCacheRepository{
+// 	redis.RedisClient,
+// }
 
-	redis.InitRedis()
+// _ = userdao.SetVerificationCode("1121883342@qq.com", "你看看")
+// msg, _ := userdao.GetVerificationCode("1121883342@qq.com")
+// logServer.Info("数据为:%s", msg)
 
-	var userdao = UserCacheRepository{
-		redis.RedisClient,
-	}
+// filePath := "../../../config/config.yaml"
+// file, err := os.OpenFile(filePath, os.O_RDONLY, os.ModePerm)
+// if err != nil {
+// 	logServer.Error("出现问题:%s", err.Error())
+// }
 
-	_ = userdao.SetVerificationCode("1121883342@qq.com", "你看看")
-	msg, _ := userdao.GetVerificationCode("1121883342@qq.com")
-	logServer.Info("数据为:%s", msg)
+// newreader := bufio.NewReader(file)
 
-	// filePath := "../../../config/config.yaml"
-	// file, err := os.OpenFile(filePath, os.O_RDONLY, os.ModePerm)
-	// if err != nil {
-	// 	logServer.Error("出现问题:%s", err.Error())
-	// }
+// text, _, _ := newreader.ReadLine()
+// logServer.Info("读取到的文件是:%s", text)
 
-	// newreader := bufio.NewReader(file)
-
-	// text, _, _ := newreader.ReadLine()
-	// logServer.Info("读取到的文件是:%s", text)
-
-}
+// }
