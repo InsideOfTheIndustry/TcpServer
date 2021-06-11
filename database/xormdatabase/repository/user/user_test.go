@@ -9,46 +9,37 @@
 
 package user
 
-import (
-	"testing"
+// func TestCreate(t *testing.T) {
+// 	// 读取配置文件
+// 	config.Setup("config/settings.yaml")
+// 	// 测试数据库
+// 	var userdao = UserRepository{}
+// 	if err := xormdatabase.InitXormEngine(); err != nil {
+// 		t.Errorf("启动数据库失败:%s\n", err.Error())
+// 		t.Fail()
+// 	}
+// 	userdao.XormEngine = xormdatabase.DBEngine
+// 	var userinfo = reposity.UserInfo{
+// 		UserEmail:    "xxx2",
+// 		UserName:     "小猪猪",
+// 		UserPassword: "123456",
+// 		Signature:    "xxxxx",
+// 		UserAge:      19,
+// 		UserSex:      1,
+// 		UserAccount:  100000,
+// 	}
+// 	// account, _ := userdao.Create(&userinfo)
+// 	// users, err := userdao.Query(12313131)
+// 	ifre, err := userdao.QueryEmailIfAlreadyUse("12138")
+// 	friends, _ := userdao.QueryFriends(12138)
+// 	if err := userdao.Update(&userinfo); err != nil {
+// 		t.Errorf("更新数据失败:%s\n", err.Error())
+// 		t.Fail()
+// 	}
 
-	"github.com/InsideOfTheIndustry/TcpServe/config"
-	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
-	"github.com/InsideOfTheIndustry/TcpServe/logServer"
-	"github.com/InsideOfTheIndustry/TcpServe/reposity"
-)
-
-func TestCreate(t *testing.T) {
-	// 读取配置文件
-	config.Setup("config/settings.yaml")
-	// 测试数据库
-	var userdao = UserRepository{}
-	if err := xormdatabase.InitXormEngine(); err != nil {
-		t.Errorf("启动数据库失败:%s\n", err.Error())
-		t.Fail()
-	}
-	userdao.XormEngine = xormdatabase.DBEngine
-	var userinfo = reposity.UserInfo{
-		UserEmail:    "xxx2",
-		UserName:     "小猪猪",
-		UserPassword: "123456",
-		Signature:    "xxxxx",
-		UserAge:      19,
-		UserSex:      1,
-		UserAccount:  100000,
-	}
-	// account, _ := userdao.Create(&userinfo)
-	// users, err := userdao.Query(12313131)
-	ifre, err := userdao.QueryEmailIfAlreadyUse("12138")
-	friends, _ := userdao.QueryFriends(12138)
-	if err := userdao.Update(&userinfo); err != nil {
-		t.Errorf("更新数据失败:%s\n", err.Error())
-		t.Fail()
-	}
-
-	//logServer.Info("用户账号为:%v", account)
-	//logServer.Info("用户是否存在:%v,%v", *users, err)
-	logServer.Info("邮箱是否已被注册:%v", ifre)
-	logServer.Info("错误信息:%v", err)
-	logServer.Info("好友信息:%v", friends)
-}
+// 	//logServer.Info("用户账号为:%v", account)
+// 	//logServer.Info("用户是否存在:%v,%v", *users, err)
+// 	logServer.Info("邮箱是否已被注册:%v", ifre)
+// 	logServer.Info("错误信息:%v", err)
+// 	logServer.Info("好友信息:%v", friends)
+// }
