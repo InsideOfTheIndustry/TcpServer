@@ -95,10 +95,13 @@ func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 	}
 
 	grouplist, err := tcpserver.service.QueryAllGroup()
+	if err != nil {
+		return nil, err
+	}
 
 	for i := range grouplist {
 		var group = Group{
-			groupmember: make(map[string]struct{}, 0),
+			groupmember: make(map[string]struct{}),
 			lock:        &sync.Mutex{},
 		}
 		groupid := strconv.FormatInt(grouplist[i].Groupid, 10)
@@ -272,11 +275,13 @@ func (tcpserver *TcpServer) dealWithGroupMessage(message Message) {
 		logServer.Error("信息转码失败:%s", err.Error())
 		return
 	}
-	for k, _ := range thegroup.groupmember {
+	for k := range thegroup.groupmember {
 		conni, ok := tcpserver.connectionpool.Load(k)
 		if ok {
 			conn := conni.(*net.TCPConn)
-			conn.Write(mb)
+			if _, err := conn.Write(mb); err != nil {
+				logServer.Error("发送信息至:%v失败:%s", k, err.Error())
+			}
 		}
 	}
 	senderi, ok := tcpserver.connectionpool.Load(message.Sender)
