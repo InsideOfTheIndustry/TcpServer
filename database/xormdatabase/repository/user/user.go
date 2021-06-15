@@ -10,6 +10,8 @@
 package user
 
 import (
+	"strconv"
+
 	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
 	"github.com/InsideOfTheIndustry/TcpServe/logServer"
 	"github.com/InsideOfTheIndustry/TcpServe/reposity"
@@ -137,4 +139,42 @@ func (ud UserRepository) QueryEmailIfAlreadyUse(email string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// QueryAllGroup 查询系统中的所有群聊
+func (ud UserRepository) QueryAllGroup() ([]reposity.GroupInfo, error) {
+	var grouplist = make([]GroupInfo, 0)
+
+	if err := ud.Find(&grouplist); err != nil {
+		logServer.Error("查询所有群聊信息失败:%s", err.Error())
+		return make([]reposity.GroupInfo, 0), err
+	}
+
+	var groupinfolist = make([]reposity.GroupInfo, len(grouplist))
+
+	for i := range grouplist {
+		groupinfolist[i].Groupid = grouplist[i].Groupid
+		groupinfolist[i].GroupIntro = grouplist[i].GroupIntro
+		groupinfolist[i].GroupName = grouplist[i].GroupName
+
+	}
+
+	return groupinfolist, nil
+}
+
+// QueryGroupOfUser 查询用户所在的群
+func (ud UserRepository) QueryGroupOfUser(useraccount int64) ([]string, error) {
+	var usergroupinfo = make([]UserGroup, 0)
+	if err := ud.Where("useraccount = %s", useraccount).Find(&usergroupinfo); err != nil {
+		logServer.Error("查询用户所在的群失败:%s", err.Error())
+		return make([]string, 0), err
+	}
+
+	var groupidlist = make([]string, len(usergroupinfo))
+	for i := range usergroupinfo {
+		groupid := strconv.FormatInt(usergroupinfo[i].Groupid, 10)
+		groupidlist = append(groupidlist, groupid)
+	}
+	return groupidlist, nil
+
 }

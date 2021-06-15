@@ -27,13 +27,22 @@ import (
 
 // Tcp服务器
 type TcpServer struct {
-	addr           net.TCPAddr        // 服务器地址
-	conn           []*net.TCPConn     // 用户连接
-	connectionpool sync.Map           // 用户连接池
-	listener       net.TCPListener    // tcp监听器
-	ctx            context.Context    // 上下文
-	cancel         context.CancelFunc // 退出回调
-	friendMakeList []friendMakeInfo
+	addr             net.TCPAddr          // 服务器地址
+	conn             []*net.TCPConn       // 用户连接
+	connectionpool   sync.Map             // 用户连接池
+	listener         net.TCPListener      // tcp监听器
+	ctx              context.Context      // 上下文
+	cancel           context.CancelFunc   // 退出回调
+	friendMakeList   []friendMakeInfo     // 交友信息用于存储特定的聊天码 后续将采用键值对 来进行优化
+	groupchatting    sync.Map             // 群聊  以群号区分不同群聊 群聊好像写较为频繁 后续考虑换一种map
+	groupmessagechan chan Message         // 群聊消息管道
+	service          reposity.UserService // 用户服务
+}
+
+// Group 群聊
+type Group struct {
+	lock        *sync.Mutex         // 控制群聊
+	groupmember map[string]struct{} // 聊天成员
 }
 
 // ConnectIdentify 连接情况
@@ -51,12 +60,6 @@ type friendMakeInfo struct {
 	randomcode string // 随机验证码
 }
 
-// connection 用于建立心跳
-// type connection struct {
-// 	conn net.TCPConn // 连接
-// 	time time.Timer  // 定时器
-// }
-
 func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 
 	tcpServerCtx, tcpServerCancel := context.WithCancel(ctx)
@@ -73,18 +76,39 @@ func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 		return nil, err
 	}
 	logServer.Info("成功建立Tcp服务器")
+	var service = reposity.UserService{
+		ChattingReposity:     xormuser.UserRepository{XormEngine: xormdatabase.DBEngine},
+		ChatingCacheReposity: redisuser.UserCacheRepository{RedisEngine: redisdatabase.RedisClient},
+	}
 
 	tcpserver := &TcpServer{
-		addr:           addr,
-		ctx:            tcpServerCtx,
-		cancel:         tcpServerCancel,
-		listener:       *listener,
-		conn:           make([]*net.TCPConn, 0),
-		connectionpool: sync.Map{},
-		friendMakeList: make([]friendMakeInfo, 0),
+		addr:             addr,
+		ctx:              tcpServerCtx,
+		cancel:           tcpServerCancel,
+		listener:         *listener,
+		conn:             make([]*net.TCPConn, 0),
+		connectionpool:   sync.Map{},
+		friendMakeList:   make([]friendMakeInfo, 0),
+		service:          service,
+		groupchatting:    sync.Map{},
+		groupmessagechan: make(chan Message, 100),
 	}
+
+	grouplist, err := tcpserver.service.QueryAllGroup()
+
+	for i := range grouplist {
+		var group = Group{
+			groupmember: make(map[string]struct{}, 0),
+			lock:        &sync.Mutex{},
+		}
+		groupid := strconv.FormatInt(grouplist[i].Groupid, 10)
+		tcpserver.groupchatting.Store(groupid, group)
+
+	}
+
 	go tcpserver.accept()
 	go tcpserver.monitor()
+	go tcpserver.monitorgroupchat()
 	return tcpserver, nil
 }
 
@@ -127,7 +151,20 @@ func (tcpserver *TcpServer) monitor() {
 
 	<-tcpserver.ctx.Done()
 	logServer.Info("tcpserver退出监控服务...")
+}
 
+// monitorgroupchat 负责对群聊的管理
+func (tcpserver *TcpServer) monitorgroupchat() {
+	logServer.Info("群聊监控已开启")
+	for {
+		select {
+		case <-tcpserver.ctx.Done():
+			logServer.Info("tcpserver退出监控群聊服务...")
+			return
+		case message := <-tcpserver.groupmessagechan:
+			tcpserver.dealWithGroupMessage(message)
+		}
+	}
 }
 
 //chattingWithConnect 和具体的连接进行通信
@@ -153,7 +190,14 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 		if err != nil {
 			logServer.Error("接收数据失败：（%s）", err.Error())
 			logServer.Info("关闭此连接...")
-			connectidentify.connect.Close()
+			if connectidentify.useraccount == "unlogined" {
+				connectidentify.connect.Close()
+			} else {
+				tcpserver.connectionpool.Delete(connectidentify.useraccount)
+				connectidentify.connect.Close()
+				logServer.Info("用户：（%s）断开连接", connectidentify.useraccount)
+			}
+
 			return
 		}
 
@@ -187,12 +231,7 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectident
 	}
 	// 鉴权
 	ifsame, err := service.IfTokenSameAndNotExpired(useraccount, receiveMessage.Token)
-	if err != nil {
-		SendReplyMessage(conn, receiveMessage, AuthorizationFail)
-		conn.Close()
-		return
-	}
-	if !ifsame {
+	if err != nil || !ifsame {
 		SendReplyMessage(conn, receiveMessage, AuthorizationFail)
 		conn.Close()
 		return
@@ -204,6 +243,8 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectident
 		tcpserver.NewUserLoginIn(service, useraccount, receiveMessage, connectidentify)
 	case SendMessage: // 发送信息
 		tcpserver.SendMessageToReceiver(receiveMessage, conn, SendInfoSuccess, UserNotOnline)
+	case SendGroupMessage: // 群聊信息处理
+		tcpserver.groupmessagechan <- receiveMessage
 	case HeartBeat: // 心跳服务
 		tcpserver.HeartBeatMessage(receiveMessage, connectidentify)
 	case CloseConnect: // 关闭连接
@@ -219,13 +260,42 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectident
 	}
 }
 
+// dealWithGroupMessage 群聊信息的处理
+func (tcpserver *TcpServer) dealWithGroupMessage(message Message) {
+	thegroupi, ok := tcpserver.groupchatting.Load(message.Groupid)
+	if !ok {
+		return
+	}
+	thegroup := thegroupi.(Group)
+	mb, err := json.Marshal(message)
+	if err != nil {
+		logServer.Error("信息转码失败:%s", err.Error())
+		return
+	}
+	for k, _ := range thegroup.groupmember {
+		conni, ok := tcpserver.connectionpool.Load(k)
+		if ok {
+			conn := conni.(*net.TCPConn)
+			conn.Write(mb)
+		}
+	}
+	senderi, ok := tcpserver.connectionpool.Load(message.Sender)
+	if !ok {
+		logServer.Error("发送信息者不存在")
+		return
+	}
+	senderconn := senderi.(*net.TCPConn)
+	SendReplyMessage(senderconn, message, SendGroupInfoSuccess)
+
+}
+
 //SendReplyMessage 用于发送 发送状态 的信息
 func SendReplyMessage(conn *net.TCPConn, message Message, receiveStatus MessageTypes) {
 	var replyMessage = Message{
 		MessageType: receiveStatus,
 		Message:     message.Message,
 		Token:       "",
-		Sender:      message.Receiver,
+		Sender:      "tcpserver provider",
 		Receiver:    message.Sender,
 		SendTime:    message.SendTime,
 	}
