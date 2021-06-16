@@ -11,8 +11,10 @@ package reposity
 
 // ChattingReposity 聊天存储库
 type ChattingReposity interface {
-	Query(useraccount int64) (*UserInfo, error)       // 用户是否存在
-	SetFriend(launcher, accepter int64) (bool, error) // 建立朋友关系
+	Query(useraccount int64) (*UserInfo, error)           // 用户是否存在
+	SetFriend(launcher, accepter int64) (bool, error)     // 建立朋友关系
+	QueryAllGroup() ([]GroupInfo, error)                  // 查询所有的群聊信息
+	QueryGroupOfUser(useraccount int64) ([]string, error) // 查询用户所在的群
 }
 
 // ChttingCacheReposity 聊天缓存库

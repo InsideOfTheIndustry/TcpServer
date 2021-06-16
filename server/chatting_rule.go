@@ -17,6 +17,7 @@ const (
 	HeartBeat                 MessageTypes = 0   // 心跳信息
 	FirstConnect              MessageTypes = 1   // 初次连接
 	SendMessage               MessageTypes = 2   // 发送信息
+	SendGroupMessage          MessageTypes = 22  // 发送群聊信息
 	CloseConnect              MessageTypes = 4   // 断开连接
 	UserNotOnline             MessageTypes = 404 // 用户不在线
 	SendFriendRequest         MessageTypes = 3   // 发送交友请求
@@ -24,6 +25,8 @@ const (
 	RejectFriendRequest       MessageTypes = 333 // 拒绝好友请求
 	SendInfoSuccess           MessageTypes = 200 // 发出聊天信息成功
 	SendInfoFaild             MessageTypes = 400 // 发出聊天信息失败
+	SendGroupInfoSuccess      MessageTypes = 220 // 发出群聊信息成功
+	SendGroupInfoFaild        MessageTypes = 440 // 发出群聊信息失败
 	FriendMakeInfoSendSuccess MessageTypes = 201 // 发出好友相关的请求的信成功
 	FriendMakeInfoSendFail    MessageTypes = 402 // 发出好友相关的请求的信失败
 	AuthorizationFail         MessageTypes = 500 // 验证token失败
@@ -36,5 +39,6 @@ type Message struct {
 	Message     string       `json:"message"`     // 发送的信息
 	Sender      string       `json:"sender"`      // 发送者账号
 	Receiver    string       `json:"receiver"`    // 接收者账号
+	Groupid     string       `json:"groupid"`     // 群聊id
 	SendTime    time.Time    `json:"time"`        // 时间信息
 }

@@ -27,8 +27,15 @@ type UserFriend struct {
 	Accepter int64 // 好友接受者
 }
 
-// 用户朋友信息
+// FriendInfo 用户朋友信息
 type FriendInfo struct {
 	UserAccount int64      // 用户名
 	Friends     []UserInfo // 好友信息
+}
+
+// GroupInfo 群聊信息
+type GroupInfo struct {
+	Groupid    int64  // 群聊号
+	GroupName  string // 群聊名称
+	GroupIntro string // 群聊简介
 }

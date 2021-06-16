@@ -43,6 +43,26 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 	connectidentify.ifinconnectpool = true
 	connectidentify.ticker = time.NewTicker(30 * time.Second)
 	logServer.Info("用户：(%s)加入了聊天。", receiveMessage.Sender)
+
+	// 需要将其加入对应群聊
+	sender, _ := strconv.ParseInt(receiveMessage.Sender, 10, 64)
+	chattinglist, err := tcpserver.service.QueryGroupOfUser(sender)
+	if err != nil {
+		return
+	}
+
+	for i := range chattinglist {
+		groupi, ok := tcpserver.groupchatting.Load(chattinglist[i])
+		if !ok {
+			continue
+		}
+		group := groupi.(Group)
+		group.lock.Lock()
+		group.groupmember[receiveMessage.Sender] = struct{}{}
+		group.lock.Unlock()
+		tcpserver.groupchatting.Store(chattinglist[i], group)
+	}
+
 	//TODO: 若添加离线信息的话 需要先从数据库读取数据
 }
 
