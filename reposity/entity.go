@@ -19,6 +19,8 @@ type UserInfo struct {
 	UserPassword string // 用户密码
 	UserAge      int64  // 用户年龄
 	UserSex      int64  // 用户性别
+	Delete       int8   // 是否被删除
+	Online       int8   // 用户在线状态
 }
 
 // UserFriend 朋友间的相互联系

@@ -165,7 +165,7 @@ func (ud UserRepository) QueryAllGroup() ([]reposity.GroupInfo, error) {
 // QueryGroupOfUser 查询用户所在的群
 func (ud UserRepository) QueryGroupOfUser(useraccount int64) ([]string, error) {
 	var usergroupinfo = make([]UserGroup, 0)
-	if err := ud.Where("useraccount = %s", useraccount).Find(&usergroupinfo); err != nil {
+	if err := ud.Where("useraccount = ?", useraccount).Find(&usergroupinfo); err != nil {
 		logServer.Error("查询用户所在的群失败:%s", err.Error())
 		return make([]string, 0), err
 	}
@@ -176,5 +176,24 @@ func (ud UserRepository) QueryGroupOfUser(useraccount int64) ([]string, error) {
 		groupidlist = append(groupidlist, groupid)
 	}
 	return groupidlist, nil
+
+}
+
+// UpdateUserOnlineStatue 更新用户在线状态
+func (ud UserRepository) UpdateUserOnlineStatue(useraccount int64, status bool) error {
+	var online = 0
+	if status {
+		online = 1
+	}
+	var us = UserInfo{
+		UserAccount: useraccount,
+		Online:      int8(online),
+	}
+	if _, err := ud.Where("useraccount = ?", useraccount).Cols("online").Update(us); err != nil {
+		logServer.Error("更新用户状态失败:%s", err.Error())
+		return err
+	}
+
+	return nil
 
 }

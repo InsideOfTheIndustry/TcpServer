@@ -30,6 +30,9 @@ const (
 	FriendMakeInfoSendSuccess MessageTypes = 201 // 发出好友相关的请求的信成功
 	FriendMakeInfoSendFail    MessageTypes = 402 // 发出好友相关的请求的信失败
 	AuthorizationFail         MessageTypes = 500 // 验证token失败
+	OnlineStatus              MessageTypes = 222 // 上线了
+	NotOlineStatus            MessageTypes = 444 // 离线了
+	OtherPlaceLogin           MessageTypes = 88  // 在其他地方登录
 )
 
 // Message 信息传递结构
