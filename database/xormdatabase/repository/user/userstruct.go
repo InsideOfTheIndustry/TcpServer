@@ -18,6 +18,8 @@ type UserInfo struct {
 	UserPassword string `xorm:"userpassword"` // 用户密码
 	UserAge      int64  `xorm:"userage"`      // 用户年龄
 	UserSex      int64  `xorm:"usersex"`      // 用户性别
+	Online       int8   `xorm:"online"`       // 用户在线状态
+	Delete       int8   `xorm:"delete"`       // 用户是否被删除
 }
 
 // UserFriend 朋友间的相互联系

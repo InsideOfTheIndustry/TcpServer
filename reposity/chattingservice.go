@@ -28,7 +28,7 @@ func (us UserService) IfExistUser(useraccount int64) (bool, error) {
 		logServer.Error("查询用户出现错误:%s", err.Error())
 		return false, err
 	}
-	if userinfo.UserEmail == "" {
+	if userinfo.UserEmail == "" || userinfo.Delete == 1 {
 		return false, nil
 	}
 	return true, nil
@@ -59,4 +59,9 @@ func (us UserService) IfTokenSameAndNotExpired(useraccount int64, token string) 
 func (us UserService) BuildFriend(launcher, accepter int64) (bool, error) {
 	ifsuccess, err := us.ChattingReposity.SetFriend(launcher, accepter)
 	return ifsuccess, err
+}
+
+// UpdateUserOnlineStatus 更新用户在线状态
+func (us UserService) UpdateUserOnlineStatus(useraccount int64, status bool) error {
+	return us.ChattingReposity.UpdateUserOnlineStatue(useraccount, status)
 }

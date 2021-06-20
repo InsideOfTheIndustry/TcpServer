@@ -29,9 +29,12 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 		return
 	}
 	// 检查当前是否在线
-	receiverConnOther, ok := tcpserver.connectionpool.Load(receiveMessage.Receiver)
+	receiverConnOther, ok := tcpserver.connectionpool.Load(receiveMessage.Sender)
+
 	if ok {
+		logServer.Info("重复登录了")
 		var receiverConn = receiverConnOther.(*net.TCPConn)
+		SendCommonMessage(receiverConn, "tcpserver provider", receiveMessage.Sender, "您的账号被人登录了，您已下线。", "", OtherPlaceLogin)
 		err := receiverConn.Close()
 		if err != nil {
 			logServer.Error("关闭连接失败:(%s)")
@@ -41,7 +44,8 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 	// 如果重复登录，需要对其进行切换
 	tcpserver.connectionpool.Store(receiveMessage.Sender, connectidentify.connect) // 将连接加入连接池
 	connectidentify.ifinconnectpool = true
-	connectidentify.ticker = time.NewTicker(30 * time.Second)
+	connectidentify.expireat.Reset(30 * time.Second)
+	connectidentify.useraccount = receiveMessage.Sender
 	logServer.Info("用户：(%s)加入了聊天。", receiveMessage.Sender)
 
 	// 需要将其加入对应群聊
@@ -61,6 +65,23 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 		group.groupmember[receiveMessage.Sender] = struct{}{}
 		group.lock.Unlock()
 		tcpserver.groupchatting.Store(chattinglist[i], group)
+	}
+
+	// 更新在线信息
+	if err := tcpserver.service.UpdateUserOnlineStatus(useraccount, true); err != nil {
+		logServer.Error("更新状态失败:%s", err.Error())
+	}
+
+	// 向好友广播在线信息
+	userfriend, _ := tcpserver.service.QueryFriends(useraccount)
+	useraccounts := strconv.FormatInt(useraccount, 10)
+	for i := range userfriend.Friends {
+		friendaccount := strconv.FormatInt(userfriend.Friends[i].UserAccount, 10)
+		conni, ok := tcpserver.connectionpool.Load(friendaccount)
+		if ok {
+			conn := conni.(*net.TCPConn)
+			SendCommonMessage(conn, useraccounts, friendaccount, "i am online", "", OnlineStatus)
+		}
 	}
 
 	//TODO: 若添加离线信息的话 需要先从数据库读取数据
@@ -85,10 +106,10 @@ func (tcpserver *TcpServer) SendMessageToReceiver(receiveMessage Message, conn *
 			logServer.Error("信息发送失败:(%s)", err.Error())
 			logServer.Info("用户:(%s)不在线", receiveMessage.Receiver)
 			// 回复一个发送失败的信息
-			SendReplyMessage(conn, receiveMessage, FailStatus)
+			SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", FailStatus)
 			return false
 		} else {
-			SendReplyMessage(conn, receiveMessage, successStatus)
+			SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", successStatus)
 			logServer.Info("信息成功发送.")
 			return true
 		}
@@ -97,7 +118,7 @@ func (tcpserver *TcpServer) SendMessageToReceiver(receiveMessage Message, conn *
 		// 先回复当前用户
 		// 需要判断是否存在此用户
 		// TODO: 可以先存储到数据库内
-		SendReplyMessage(conn, receiveMessage, FailStatus)
+		SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", FailStatus)
 		return false
 	}
 }
@@ -116,7 +137,7 @@ func (tcpserver *TcpServer) HeartBeatMessage(receiveMessage Message, connectiden
 		logServer.Info("用户：（%s）断开连接", receiveMessage.Sender)
 	}
 
-	connectidentify.ticker = time.NewTicker(30 * time.Second)
+	connectidentify.expireat.Reset(30 * time.Second)
 
 }
 
@@ -140,9 +161,23 @@ func (tcpserver *TcpServer) CloseConnect(receiveMessage Message, conn *net.TCPCo
 }
 
 // LaunchFrienRequest 发起好友请求
-func (tcpserver *TcpServer) LaunchFrienRequest(receiveMessage Message, conn *net.TCPConn) {
+func (tcpserver *TcpServer) LaunchFriendRequest(receiveMessage Message, conn *net.TCPConn) {
 	launcherint, _ := strconv.ParseInt(receiveMessage.Sender, 10, 64)
 	accepterint, _ := strconv.ParseInt(receiveMessage.Receiver, 10, 64)
+	friends, err := tcpserver.service.QueryFriends(launcherint)
+
+	if err != nil {
+		logServer.Error("查询用户好友信息出现错误:%s", err.Error())
+		SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, "查询好友失败", "", FriendMakeInfoSendFail)
+		return
+	}
+
+	for i := range friends.Friends {
+		if friends.Friends[i].UserAccount == accepterint {
+			SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, "找茬？", "", FriendMakeInfoSendFail)
+			return
+		}
+	}
 
 	// 目前只支持在线添加好友 首先将一个请求添加进好友交友队列
 	var friendmake = friendMakeInfo{
@@ -163,19 +198,22 @@ func (tcpserver *TcpServer) LaunchFrienRequest(receiveMessage Message, conn *net
 	// 返回发送情况
 	success := tcpserver.SendMessageToReceiver(message, conn, FriendMakeInfoSendSuccess, FriendMakeInfoSendFail)
 	if success {
-		tcpserver.friendMakeList = append(tcpserver.friendMakeList, friendmake)
+		tcpserver.friendMakeList.Store(friendmake.randomcode, friendmake)
 	}
 }
 
 // AcceptFrienRequest 接受好友请求
-func (tcpserver *TcpServer) AcceptFrienRequest(service reposity.UserService, receiveMessage Message, conn *net.TCPConn) {
+func (tcpserver *TcpServer) AcceptFriendRequest(service reposity.UserService, receiveMessage Message, conn *net.TCPConn) {
 	accepterint, _ := strconv.ParseInt(receiveMessage.Sender, 10, 64)
 	launcherint, _ := strconv.ParseInt(receiveMessage.Receiver, 10, 64)
 
 	var friendmakeinfopo = -1
 	logServer.Info("收到接受好友请求信息。")
-	for i, v := range tcpserver.friendMakeList {
-		if v.randomcode == receiveMessage.Message && v.launcher == launcherint && v.accepter == accepterint {
+
+	value, ok := tcpserver.friendMakeList.Load(receiveMessage.Message)
+	if ok {
+		friendmakeinfo := value.(friendMakeInfo)
+		if friendmakeinfo.randomcode == receiveMessage.Message && friendmakeinfo.launcher == launcherint && friendmakeinfo.accepter == accepterint {
 			success, _ := service.ChattingReposity.SetFriend(launcherint, accepterint)
 			if success {
 				var message = Message{
@@ -188,14 +226,14 @@ func (tcpserver *TcpServer) AcceptFrienRequest(service reposity.UserService, rec
 				}
 				// 返回发送情况
 				tcpserver.SendMessageToReceiver(message, conn, FriendMakeInfoSendSuccess, FriendMakeInfoSendFail)
-				friendmakeinfopo = i
+				friendmakeinfopo = 1
 			}
 		}
 	}
 
 	// 对好友添加列表进行删除
 	if friendmakeinfopo != -1 {
-		tcpserver.friendMakeList = append(tcpserver.friendMakeList[:friendmakeinfopo], tcpserver.friendMakeList[friendmakeinfopo+1:]...)
+		tcpserver.friendMakeList.Delete(receiveMessage.Message)
 	}
 }
 
@@ -205,9 +243,10 @@ func (tcpserver *TcpServer) RejectFrienRequest(receiveMessage Message, conn *net
 	launcherint, _ := strconv.ParseInt(receiveMessage.Receiver, 10, 64)
 
 	var friendmakeinfopo = -1
-
-	for i, v := range tcpserver.friendMakeList {
-		if v.randomcode == receiveMessage.Message && v.launcher == launcherint && v.accepter == accepterint {
+	value, ok := tcpserver.friendMakeList.Load(receiveMessage.Message)
+	if ok {
+		friendmakeinfo := value.(friendMakeInfo)
+		if friendmakeinfo.randomcode == receiveMessage.Message && friendmakeinfo.launcher == launcherint && friendmakeinfo.accepter == accepterint {
 
 			var message = Message{
 				MessageType: RejectFriendRequest,
@@ -219,14 +258,14 @@ func (tcpserver *TcpServer) RejectFrienRequest(receiveMessage Message, conn *net
 			}
 			// 返回发送情况
 			tcpserver.SendMessageToReceiver(message, conn, FriendMakeInfoSendSuccess, FriendMakeInfoSendFail)
-			friendmakeinfopo = i
+			friendmakeinfopo = 1
 
 		}
 	}
 
 	// 对好友添加列表进行删除
 	if friendmakeinfopo != -1 {
-		tcpserver.friendMakeList = append(tcpserver.friendMakeList[:friendmakeinfopo], tcpserver.friendMakeList[friendmakeinfopo+1:]...)
+		tcpserver.friendMakeList.Delete(receiveMessage.Message)
 	}
 }
 

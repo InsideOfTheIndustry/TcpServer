@@ -9,6 +9,15 @@
 
 package user
 
+import (
+	"fmt"
+	"testing"
+
+	"github.com/InsideOfTheIndustry/TcpServe/config"
+	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
+	"github.com/InsideOfTheIndustry/TcpServe/logServer"
+)
+
 // func TestCreate(t *testing.T) {
 // 	// 读取配置文件
 // 	config.Setup("config/settings.yaml")
@@ -43,3 +52,27 @@ package user
 // 	logServer.Info("错误信息:%v", err)
 // 	logServer.Info("好友信息:%v", friends)
 // }
+
+func TestGroupInfo(t *testing.T) {
+	logServer.Setup("info")
+	// 读取配置文件
+	config.Setup("../../../../config/config.yaml")
+	// 测试数据库
+	var userdao = UserRepository{}
+	if err := xormdatabase.InitXormEngine(); err != nil {
+		t.Errorf("启动数据库失败:%s\n", err.Error())
+		t.Fail()
+	}
+	userdao.XormEngine = xormdatabase.DBEngine
+
+	groupinfo, _ := userdao.QueryAllGroup()
+	if err := userdao.UpdateUserOnlineStatue(100003, true); err != nil {
+		fmt.Println(err.Error())
+	}
+
+	groups, _ := userdao.QueryGroupOfUser(10000)
+
+	fmt.Println(groupinfo)
+	fmt.Println(groups)
+
+}

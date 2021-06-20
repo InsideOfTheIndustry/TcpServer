@@ -1,6 +1,7 @@
 package server
 
 import (
+	"sync"
 	"testing"
 )
 
@@ -69,11 +70,12 @@ func TestTcpGroup(t *testing.T) {
 	// }
 
 	// logServer.Info("Tcp服务停止")
-	// var maps = make(map[string]string, 0)
-	// maps["1"] = "1"
-	// delete(maps, "2")
-	// var maps2 = sync.Map{}
-	// maps2.Store("111", 22)
-	// maps2.Delete("111")
-	// maps2.Delete("111")
+	var maps = make(map[string]string)
+	maps["1"] = "1"
+	delete(maps, "2")
+	var maps2 = sync.Map{}
+	maps2.Store("111", 22)
+	maps2.Delete("111")
+	maps2.Delete("111")
+
 }

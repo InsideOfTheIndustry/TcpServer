@@ -33,13 +33,13 @@ type TcpServer struct {
 	listener         net.TCPListener      // tcp监听器
 	ctx              context.Context      // 上下文
 	cancel           context.CancelFunc   // 退出回调
-	friendMakeList   []friendMakeInfo     // 交友信息用于存储特定的聊天码 后续将采用键值对 来进行优化
-	groupchatting    sync.Map             // 群聊  以群号区分不同群聊 群聊好像写较为频繁 后续考虑换一种map
+	friendMakeList   sync.Map             // 交友信息用于存储特定的聊天码 后续将采用键值对 来进行优化
+	groupchatting    sync.Map             // 群聊
 	groupmessagechan chan Message         // 群聊消息管道
 	service          reposity.UserService // 用户服务
 }
 
-// Group 群聊
+// Group 群聊 写入较为频繁 读取基本上都是循环读
 type Group struct {
 	lock        *sync.Mutex         // 控制群聊
 	groupmember map[string]struct{} // 聊天成员
@@ -48,7 +48,7 @@ type Group struct {
 // ConnectIdentify 连接情况
 type ConnectIdentify struct {
 	connect         *net.TCPConn // 连接情况
-	ticker          *time.Ticker // 计时器
+	expireat        *time.Timer  // 计时器
 	ifinconnectpool bool         // 是否加入了连接池
 	useraccount     string       // 用户账号
 }
@@ -88,7 +88,7 @@ func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 		listener:         *listener,
 		conn:             make([]*net.TCPConn, 0),
 		connectionpool:   sync.Map{},
-		friendMakeList:   make([]friendMakeInfo, 0),
+		friendMakeList:   sync.Map{},
 		service:          service,
 		groupchatting:    sync.Map{},
 		groupmessagechan: make(chan Message, 100),
@@ -178,7 +178,7 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 	var connectidentify = ConnectIdentify{
 		connect:         connect,
 		ifinconnectpool: false,
-		ticker:          time.NewTicker(30 * time.Second),
+		expireat:        time.NewTimer(30 * time.Second),
 		useraccount:     "unlogined",
 	}
 
@@ -196,9 +196,35 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 			if connectidentify.useraccount == "unlogined" {
 				connectidentify.connect.Close()
 			} else {
-				tcpserver.connectionpool.Delete(connectidentify.useraccount)
-				connectidentify.connect.Close()
-				logServer.Info("用户：（%s）断开连接", connectidentify.useraccount)
+				conni, ok := tcpserver.connectionpool.Load(connectidentify.useraccount)
+				if ok {
+					conn := conni.(*net.TCPConn)
+					if conn == connectidentify.connect {
+						tcpserver.connectionpool.Delete(connectidentify.useraccount)
+						connectidentify.connect.Close()
+						useraccountint, _ := strconv.ParseInt(connectidentify.useraccount, 10, 64)
+						if err := tcpserver.service.UpdateUserOnlineStatus(useraccountint, false); err != nil {
+							logServer.Error("用户修改状态失败:%s", err.Error())
+						}
+						// 广播下线信息
+						userfriend, _ := tcpserver.service.QueryFriends(useraccountint)
+						for i := range userfriend.Friends {
+							friendaccount := strconv.FormatInt(userfriend.Friends[i].UserAccount, 10)
+							conni, ok := tcpserver.connectionpool.Load(friendaccount)
+							if ok {
+								conn := conni.(*net.TCPConn)
+								SendCommonMessage(conn, connectidentify.useraccount, friendaccount, "", "i am offline", NotOlineStatus)
+							}
+						}
+						logServer.Info("用户：（%s）断开连接", connectidentify.useraccount)
+					} else {
+						logServer.Info("用户:%s重复登录", connectidentify.useraccount)
+						connectidentify.connect.Close()
+					}
+				} else {
+					connectidentify.connect.Close()
+				}
+
 			}
 
 			return
@@ -234,8 +260,10 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectident
 	}
 	// 鉴权
 	ifsame, err := service.IfTokenSameAndNotExpired(useraccount, receiveMessage.Token)
+
 	if err != nil || !ifsame {
-		SendReplyMessage(conn, receiveMessage, AuthorizationFail)
+		logServer.Error("用户鉴权未通过。")
+		SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, receiveMessage.Message, "", AuthorizationFail)
 		conn.Close()
 		return
 	}
@@ -253,9 +281,9 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectident
 	case CloseConnect: // 关闭连接
 		tcpserver.CloseConnect(receiveMessage, conn, "已收到断开请求，正在断开...")
 	case SendFriendRequest: // 发送好友申请
-		tcpserver.LaunchFrienRequest(receiveMessage, conn)
+		tcpserver.LaunchFriendRequest(receiveMessage, conn)
 	case AcceptFriendRequest: // 接受好友申请
-		tcpserver.AcceptFrienRequest(service, receiveMessage, conn)
+		tcpserver.AcceptFriendRequest(service, receiveMessage, conn)
 	case RejectFriendRequest: // 拒绝好友申请
 		tcpserver.RejectFrienRequest(receiveMessage, conn)
 	default:
@@ -275,7 +303,11 @@ func (tcpserver *TcpServer) dealWithGroupMessage(message Message) {
 		logServer.Error("信息转码失败:%s", err.Error())
 		return
 	}
+	thegroup.lock.Lock()
 	for k := range thegroup.groupmember {
+		if k == message.Sender {
+			continue
+		}
 		conni, ok := tcpserver.connectionpool.Load(k)
 		if ok {
 			conn := conni.(*net.TCPConn)
@@ -284,27 +316,29 @@ func (tcpserver *TcpServer) dealWithGroupMessage(message Message) {
 			}
 		}
 	}
+	thegroup.lock.Unlock()
 	senderi, ok := tcpserver.connectionpool.Load(message.Sender)
 	if !ok {
 		logServer.Error("发送信息者不存在")
 		return
 	}
 	senderconn := senderi.(*net.TCPConn)
-	SendReplyMessage(senderconn, message, SendGroupInfoSuccess)
+	SendCommonMessage(senderconn, "tcpserver provider", message.Sender, message.Message, message.Groupid, SendGroupInfoSuccess)
 
 }
 
-//SendReplyMessage 用于发送 发送状态 的信息
-func SendReplyMessage(conn *net.TCPConn, message Message, receiveStatus MessageTypes) {
-	var replyMessage = Message{
+//SendCommonMessage 用于发送信息
+func SendCommonMessage(conn *net.TCPConn, sender, receiver, message, groupid string, receiveStatus MessageTypes) {
+	var messageforsend = Message{
 		MessageType: receiveStatus,
-		Message:     message.Message,
+		Message:     message,
 		Token:       "",
-		Sender:      "tcpserver provider",
-		Receiver:    message.Sender,
-		SendTime:    message.SendTime,
+		Sender:      sender,
+		Receiver:    receiver,
+		SendTime:    time.Now(),
+		Groupid:     groupid,
 	}
-	sendbyte, _ := json.Marshal(replyMessage)
+	sendbyte, _ := json.Marshal(messageforsend)
 	_, err := conn.Write(sendbyte)
 	if err != nil {
 		logServer.Error("发送回复信息失败：(%s)", err.Error())
@@ -313,7 +347,7 @@ func SendReplyMessage(conn *net.TCPConn, message Message, receiveStatus MessageT
 
 // monitorconnect 监控连接状态 用于设置超时和垃圾连接
 func (ci *ConnectIdentify) monitorconnect() {
-	<-ci.ticker.C
+	<-ci.expireat.C
 	logServer.Info("连接已超时,断开此连接,用户号为:%s,用户登录状态为:%v", ci.useraccount, ci.ifinconnectpool)
 	ci.connect.Close()
 }
