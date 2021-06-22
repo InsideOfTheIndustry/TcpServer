@@ -28,7 +28,6 @@ import (
 // Tcp服务器
 type TcpServer struct {
 	addr             net.TCPAddr          // 服务器地址
-	conn             []*net.TCPConn       // 用户连接
 	connectionpool   sync.Map             // 用户连接池
 	listener         net.TCPListener      // tcp监听器
 	ctx              context.Context      // 上下文
@@ -86,7 +85,6 @@ func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 		ctx:              tcpServerCtx,
 		cancel:           tcpServerCancel,
 		listener:         *listener,
-		conn:             make([]*net.TCPConn, 0),
 		connectionpool:   sync.Map{},
 		friendMakeList:   sync.Map{},
 		service:          service,
@@ -119,11 +117,14 @@ func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 func (tcpserver *TcpServer) close() {
 	tcpserver.listener.Close()
 	tcpserver.cancel()
-	for i := range tcpserver.conn {
-		if err := tcpserver.conn[i].Close(); err != nil {
-			logServer.Error("conn 断开连接失败:%s", err.Error())
+	tcpserver.connectionpool.Range(func(key, value interface{}) bool {
+		if err := value.(*net.TCPConn).Close(); err != nil {
+			logServer.Error("断开连接失败:%s", err.Error())
 		}
-	}
+
+		tcpserver.connectionpool.Delete(key)
+		return true
+	})
 	logServer.Info("Tcpserver停止服务...")
 }
 
@@ -139,7 +140,6 @@ func (tcpserver *TcpServer) accept() {
 		} else {
 			// 进行通信 包括转发信息等
 			logServer.Info("监听到连接：ip为(%s)", connect.RemoteAddr())
-			tcpserver.conn = append(tcpserver.conn, connect)
 			go tcpserver.chattingWithConnect(connect)
 		}
 
@@ -165,7 +165,7 @@ func (tcpserver *TcpServer) monitorgroupchat() {
 			logServer.Info("tcpserver退出监控群聊服务...")
 			return
 		case message := <-tcpserver.groupmessagechan:
-			tcpserver.dealWithGroupMessage(message)
+			go tcpserver.dealWithGroupMessage(message)
 		}
 	}
 }
