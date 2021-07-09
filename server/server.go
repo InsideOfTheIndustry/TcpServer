@@ -27,21 +27,33 @@ import (
 
 // Tcp服务器
 type TcpServer struct {
-	addr             net.TCPAddr          // 服务器地址
-	connectionpool   sync.Map             // 用户连接池
-	listener         net.TCPListener      // tcp监听器
-	ctx              context.Context      // 上下文
-	cancel           context.CancelFunc   // 退出回调
-	friendMakeList   sync.Map             // 交友信息用于存储特定的聊天码 后续将采用键值对 来进行优化
-	groupchatting    sync.Map             // 群聊
-	groupmessagechan chan Message         // 群聊消息管道
-	service          reposity.UserService // 用户服务
+	addr                net.TCPAddr          // 服务器地址
+	connectionpool      sync.Map             // 用户连接池
+	listener            net.TCPListener      // tcp监听器
+	ctx                 context.Context      // 上下文
+	cancel              context.CancelFunc   // 退出回调
+	friendMakeList      sync.Map             // 交友码
+	groupJoinVerifyCode GroupJoinVerifyCode  // 邀请入群的特定的邀请码 写入和删除较为频繁 使用读写锁锁定
+	groupchatting       sync.Map             // 群聊
+	groupmessagechan    chan Message         // 群聊消息管道
+	service             reposity.UserService // 用户服务
 }
 
-// Group 群聊 写入较为频繁 读取基本上都是循环读
+// Group 群聊 读取更频繁 TODO:后续将对此进行修改
 type Group struct {
 	lock        *sync.Mutex         // 控制群聊
 	groupmember map[string]struct{} // 聊天成员
+}
+
+// GroupJoinVerifyCode 邀请入群的特定的邀请码
+type GroupJoinVerifyCode struct {
+	lock           *sync.RWMutex
+	groupByUserAcc map[string]GroupByUserAccStruct // 根据用户名进行分类
+}
+
+// GroupByUserAccStruct 根据用户账号分类后再存储
+type GroupByUserAccStruct struct {
+	Code map[string]string
 }
 
 // ConnectIdentify 连接情况
@@ -90,6 +102,10 @@ func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 		service:          service,
 		groupchatting:    sync.Map{},
 		groupmessagechan: make(chan Message, 100),
+		groupJoinVerifyCode: GroupJoinVerifyCode{
+			lock:           &sync.RWMutex{},
+			groupByUserAcc: make(map[string]GroupByUserAccStruct),
+		},
 	}
 
 	grouplist, err := tcpserver.service.QueryAllGroup()
@@ -103,6 +119,18 @@ func NewTcpServer(ctx context.Context) (*TcpServer, error) {
 			lock:        &sync.Mutex{},
 		}
 		groupid := strconv.FormatInt(grouplist[i].Groupid, 10)
+		groupmembers, err := tcpserver.service.QueryGroupMembers(grouplist[i].Groupid)
+		if err != nil {
+			logServer.Error("查询群用户失败:%s", err.Error())
+			continue
+		}
+		group.lock.Lock()
+		for memberi := range groupmembers {
+			memberid := strconv.FormatInt(groupmembers[memberi].UserAccount, 10)
+			group.groupmember[memberid] = struct{}{}
+
+		}
+		group.lock.Unlock()
 		tcpserver.groupchatting.Store(groupid, group)
 
 	}
@@ -213,9 +241,11 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 							conni, ok := tcpserver.connectionpool.Load(friendaccount)
 							if ok {
 								conn := conni.(*net.TCPConn)
-								SendCommonMessage(conn, connectidentify.useraccount, friendaccount, "", "i am offline", NotOlineStatus)
+								_ = SendCommonMessage(conn, connectidentify.useraccount, friendaccount, "", "i am offline", NotOlineStatus)
 							}
 						}
+						// 删除一切好友添加相关内容
+						delete(tcpserver.groupJoinVerifyCode.groupByUserAcc, connectidentify.useraccount)
 						logServer.Info("用户：（%s）断开连接", connectidentify.useraccount)
 					} else {
 						logServer.Info("用户:%s重复登录", connectidentify.useraccount)
@@ -263,7 +293,7 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectident
 
 	if err != nil || !ifsame {
 		logServer.Error("用户鉴权未通过。")
-		SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, receiveMessage.Message, "", AuthorizationFail)
+		_ = SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, receiveMessage.Message, "", AuthorizationFail)
 		conn.Close()
 		return
 	}
@@ -286,6 +316,19 @@ func (tcpserver *TcpServer) dealWithMessage(receiveMessage Message, connectident
 		tcpserver.AcceptFriendRequest(service, receiveMessage, conn)
 	case RejectFriendRequest: // 拒绝好友申请
 		tcpserver.RejectFrienRequest(receiveMessage, conn)
+	case CreateNewGroup: // 创建群聊
+		tcpserver.CreateNewGroup(receiveMessage, conn)
+	case InviteFriendInToGroup: // 邀请好友进入群聊
+		tcpserver.InviteFriendInToGroup(receiveMessage, conn)
+	case GroupOwnerRejectInvite: // 群主拒绝了你的邀请请求
+		tcpserver.GroupOwenerRejectInviteReq(receiveMessage, conn)
+	case GroupOwnerAcceptInvite: // 群主同意你的邀请请求
+		tcpserver.GroupOwenerAcceptInviteReq(receiveMessage, conn)
+	case UserAcceptGroupInvite: // 用户接受加入群聊邀请
+		tcpserver.UserAcceptJoinToGroup(receiveMessage, conn)
+	case UserRejectGroupInvite: // 用户拒绝加入群聊邀请
+		tcpserver.UserRejectJoinToGroup(receiveMessage, conn)
+
 	default:
 		logServer.Info("未知命令类型")
 	}
@@ -323,12 +366,12 @@ func (tcpserver *TcpServer) dealWithGroupMessage(message Message) {
 		return
 	}
 	senderconn := senderi.(*net.TCPConn)
-	SendCommonMessage(senderconn, "tcpserver provider", message.Sender, message.Message, message.Groupid, SendGroupInfoSuccess)
+	_ = SendCommonMessage(senderconn, "tcpserver provider", message.Sender, message.Message, message.Groupid, SendGroupInfoSuccess)
 
 }
 
 //SendCommonMessage 用于发送信息
-func SendCommonMessage(conn *net.TCPConn, sender, receiver, message, groupid string, receiveStatus MessageTypes) {
+func SendCommonMessage(conn *net.TCPConn, sender, receiver, message, groupid string, receiveStatus MessageTypes) error {
 	var messageforsend = Message{
 		MessageType: receiveStatus,
 		Message:     message,
@@ -338,11 +381,17 @@ func SendCommonMessage(conn *net.TCPConn, sender, receiver, message, groupid str
 		SendTime:    time.Now(),
 		Groupid:     groupid,
 	}
-	sendbyte, _ := json.Marshal(messageforsend)
-	_, err := conn.Write(sendbyte)
+	sendbyte, err := json.Marshal(messageforsend)
 	if err != nil {
-		logServer.Error("发送回复信息失败：(%s)", err.Error())
+		logServer.Error("数据转码失败:%s", err.Error())
+		return err
 	}
+
+	if _, err := conn.Write(sendbyte); err != nil {
+		logServer.Error("发送信息失败：(%s)", err.Error())
+		return err
+	}
+	return nil
 }
 
 // monitorconnect 监控连接状态 用于设置超时和垃圾连接

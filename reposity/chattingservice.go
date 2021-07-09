@@ -65,3 +65,33 @@ func (us UserService) BuildFriend(launcher, accepter int64) (bool, error) {
 func (us UserService) UpdateUserOnlineStatus(useraccount int64, status bool) error {
 	return us.ChattingReposity.UpdateUserOnlineStatue(useraccount, status)
 }
+
+// QueryGroupMembers 查询群聊成员信息
+func (us UserService) QueryGroupMembers(groupid int64) ([]GroupMemberInfo, error) {
+	return us.ChattingReposity.QueryGroupMembers(groupid)
+}
+
+// QueryGroupInfo 查询群聊信息
+func (us UserService) QueryGroupInfo(groupid int64) (GroupInfo, error) {
+	return us.ChattingReposity.QueryGroupInfo(groupid)
+}
+
+// QueryGroupOfUser 查询用户拥有的群聊
+func (us UserService) QueryGroupOfUser(groupid int64) ([]string, error) {
+	return us.ChattingReposity.QueryGroupOfUser(groupid)
+}
+
+//QueryIfUserInGroup 查询用户是否再群内
+func (us UserService) QueryIfUserInGroup(useraccount int64, groupid int64) (bool, error) {
+	return us.ChattingReposity.QueryIfUserInGroup(useraccount, groupid)
+}
+
+//  AddUserToGroup 将用户加入群聊
+func (us UserService) AddUserToGroup(useraccount, groupid int64) error {
+	return us.ChattingReposity.AddUserToGroup(useraccount, groupid)
+}
+
+// QueryGroupMembersCount 查询群内用户数
+func (us UserService) QueryGroupMembersCount(groupid int64) (int64, error) {
+	return us.ChattingReposity.QueryGroupMembersCount(groupid)
+}

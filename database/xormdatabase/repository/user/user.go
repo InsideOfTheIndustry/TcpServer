@@ -10,6 +10,7 @@
 package user
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/InsideOfTheIndustry/TcpServe/database/xormdatabase"
@@ -153,9 +154,11 @@ func (ud UserRepository) QueryAllGroup() ([]reposity.GroupInfo, error) {
 	var groupinfolist = make([]reposity.GroupInfo, len(grouplist))
 
 	for i := range grouplist {
-		groupinfolist[i].Groupid = grouplist[i].Groupid
-		groupinfolist[i].GroupIntro = grouplist[i].GroupIntro
-		groupinfolist[i].GroupName = grouplist[i].GroupName
+		if grouplist[i].Deleted == 0 {
+			groupinfolist[i].Groupid = grouplist[i].Groupid
+			groupinfolist[i].GroupIntro = grouplist[i].GroupIntro
+			groupinfolist[i].GroupName = grouplist[i].GroupName
+		}
 
 	}
 
@@ -196,4 +199,99 @@ func (ud UserRepository) UpdateUserOnlineStatue(useraccount int64, status bool) 
 
 	return nil
 
+}
+
+// QueryGroupMembers 查询群聊用户
+func (ud UserRepository) QueryGroupMembers(groupid int64) ([]reposity.GroupMemberInfo, error) {
+	var groupmembers = make([]GroupMemberInfo, 0)
+
+	if err := ud.Sql("SELECT username,UserGroup.useraccount FROM UserInfo , UserGroup   WHERE  UserGroup.groupid = ? AND UserInfo.useraccount = UserGroup.useraccount", groupid).Find(&groupmembers); err != nil {
+		return []reposity.GroupMemberInfo{}, err
+	}
+
+	gm := make([]reposity.GroupMemberInfo, len(groupmembers))
+
+	for i := range groupmembers {
+		gm[i] = reposity.GroupMemberInfo(groupmembers[i])
+	}
+
+	return gm, nil
+}
+
+// QueryGroupMembersCount 查询群聊用户数量
+func (ud UserRepository) QueryGroupMembersCount(groupid int64) (int64, error) {
+
+	numbers, err := ud.Table("UserGroup").Where("groupid = ?", groupid).Count()
+	if err != nil {
+		return 0, err
+	}
+
+	return numbers, nil
+}
+
+// QueryGroupInfo 查询群聊信息
+func (ud UserRepository) QueryGroupInfo(groupid int64) (reposity.GroupInfo, error) {
+	var groupinfo = GroupInfo{Groupid: groupid}
+	ok, err := ud.Get(&groupinfo)
+	if err != nil {
+		logServer.Error("查询群聊信息失败:%s", err.Error())
+		return reposity.GroupInfo{}, err
+	}
+	logServer.Info("ok:%v,value:%v", ok, groupinfo)
+	if groupinfo.Deleted == 1 {
+		return reposity.GroupInfo{}, nil
+	}
+
+	var groupinforeturn = reposity.GroupInfo{
+		Groupid:     groupinfo.Groupid,
+		GroupName:   groupinfo.GroupName,
+		GroupIntro:  groupinfo.GroupIntro,
+		GroupAvatar: groupinfo.GroupAvatar,
+		GroupOwner:  groupinfo.GroupOwner,
+		CreateAt:    groupinfo.CreateAt,
+		Deleted:     groupinfo.Deleted,
+	}
+
+	return groupinforeturn, nil
+}
+
+// QueryIfUserInGroup 查询用户是否在群内
+func (ud UserRepository) QueryIfUserInGroup(useraccount int64, groupid int64) (bool, error) {
+	var usergroupinfo = UserGroup{}
+	ifexist, err := ud.Where("useraccount = ?", useraccount).And("groupid = ?", groupid).Get(&usergroupinfo)
+	if err != nil {
+		logServer.Error("查询用户所在的群失败:%s", err.Error())
+		return false, err
+	}
+
+	return ifexist, nil
+}
+
+// AddUserToGroup 将用户加入群聊
+func (ud UserRepository) AddUserToGroup(useraccount, groupid int64) error {
+
+	var userinfo = UserInfo{}
+	_, err := ud.Where("useraccount = ?", useraccount).Get(&userinfo)
+	if err != nil {
+		logServer.Error("查询用户失败:%s", err.Error())
+		return err
+	}
+
+	if userinfo.UserAccount == 0 {
+
+		return errors.New("用户不存在!")
+	}
+
+	// 插入用户 群聊关系 准备加一个时间字段
+	var usergroup = UserGroup{
+		Useraccount:     useraccount,
+		Groupid:         groupid,
+		UserNameInGroup: userinfo.UserName,
+	}
+	if _, err := ud.InsertOne(usergroup); err != nil {
+		logServer.Error("将用户加入默认群聊失败:%s", err.Error())
+		return err
+	}
+
+	return nil
 }
