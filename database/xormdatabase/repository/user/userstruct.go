@@ -8,6 +8,8 @@
 //
 package user
 
+import "time"
+
 // UserInfo 用户实体
 type UserInfo struct {
 	UserAccount  int64  `xorm:"useraccount"`  // 用户账号
@@ -30,9 +32,13 @@ type UserFriend struct {
 
 // GroupInfo 群聊信息
 type GroupInfo struct {
-	Groupid    int64  `xorm:"groupid"`    // 群聊号
-	GroupName  string `xorm:"groupname"`  // 群聊名称
-	GroupIntro string `xorm:"groupintro"` // 群聊简介
+	Groupid     int64     `xorm:"groupid"`     // 群聊号
+	GroupName   string    `xorm:"groupname"`   // 群聊名称
+	GroupIntro  string    `xorm:"groupintro"`  // 群聊简介
+	GroupOwner  int64     `xorm:"groupowner"`  // 群主
+	GroupAvatar string    `xorm:"groupavatar"` // 群头像
+	Deleted     int8      `xorm:"delete"`      // 是否删除
+	CreateAt    time.Time `xorm:"createat"`    // 创建时间
 }
 
 // UserGroup 用户所在的群
@@ -40,4 +46,10 @@ type UserGroup struct {
 	Useraccount     int64  `xorm:"useraccount"`     // 用户账号
 	Groupid         int64  `xorm:"groupid"`         // 群聊号
 	UserNameInGroup string `xorm:"usernameingroup"` // 用户在群中的昵称
+}
+
+// GroupMemberInfo 群内用户的信息
+type GroupMemberInfo struct {
+	UserName    string `xorm:"username"`    // 用户名
+	UserAccount int64  `xorm:"useraccount"` // 用户账号
 }

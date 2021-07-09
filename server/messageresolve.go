@@ -11,8 +11,11 @@ package server
 
 import (
 	"encoding/json"
+	"math/rand"
 	"net"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/InsideOfTheIndustry/TcpServe/logServer"
@@ -34,7 +37,9 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 	if ok {
 		logServer.Info("重复登录了")
 		var receiverConn = receiverConnOther.(*net.TCPConn)
-		SendCommonMessage(receiverConn, "tcpserver provider", receiveMessage.Sender, "您的账号被人登录了，您已下线。", "", OtherPlaceLogin)
+		if err := SendCommonMessage(receiverConn, "tcpserver provider", receiveMessage.Sender, "您的账号被人登录了，您已下线。", "", OtherPlaceLogin); err != nil {
+			logServer.Error("信息发送失败:%s", err.Error())
+		}
 		err := receiverConn.Close()
 		if err != nil {
 			logServer.Error("关闭连接失败:(%s)")
@@ -47,25 +52,6 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 	connectidentify.expireat.Reset(30 * time.Second)
 	connectidentify.useraccount = receiveMessage.Sender
 	logServer.Info("用户：(%s)加入了聊天。", receiveMessage.Sender)
-
-	// 需要将其加入对应群聊
-	sender, _ := strconv.ParseInt(receiveMessage.Sender, 10, 64)
-	chattinglist, err := tcpserver.service.QueryGroupOfUser(sender)
-	if err != nil {
-		return
-	}
-
-	for i := range chattinglist {
-		groupi, ok := tcpserver.groupchatting.Load(chattinglist[i])
-		if !ok {
-			continue
-		}
-		group := groupi.(Group)
-		group.lock.Lock()
-		group.groupmember[receiveMessage.Sender] = struct{}{}
-		group.lock.Unlock()
-		tcpserver.groupchatting.Store(chattinglist[i], group)
-	}
 
 	// 更新在线信息
 	if err := tcpserver.service.UpdateUserOnlineStatus(useraccount, true); err != nil {
@@ -80,7 +66,9 @@ func (tcpserver *TcpServer) NewUserLoginIn(service reposity.UserService, useracc
 		conni, ok := tcpserver.connectionpool.Load(friendaccount)
 		if ok {
 			conn := conni.(*net.TCPConn)
-			SendCommonMessage(conn, useraccounts, friendaccount, "i am online", "", OnlineStatus)
+			if err := SendCommonMessage(conn, useraccounts, friendaccount, "i am online", "", OnlineStatus); err != nil {
+				logServer.Error("发送信息失败:%s", err.Error())
+			}
 		}
 	}
 
@@ -106,10 +94,14 @@ func (tcpserver *TcpServer) SendMessageToReceiver(receiveMessage Message, conn *
 			logServer.Error("信息发送失败:(%s)", err.Error())
 			logServer.Info("用户:(%s)不在线", receiveMessage.Receiver)
 			// 回复一个发送失败的信息
-			SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", FailStatus)
+			if err := SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", FailStatus); err != nil {
+				logServer.Error("发送信息失败:%s", err.Error())
+			}
 			return false
 		} else {
-			SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", successStatus)
+			if err := SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", successStatus); err != nil {
+				logServer.Error("发送信息失败:%s", err.Error())
+			}
 			logServer.Info("信息成功发送.")
 			return true
 		}
@@ -118,7 +110,9 @@ func (tcpserver *TcpServer) SendMessageToReceiver(receiveMessage Message, conn *
 		// 先回复当前用户
 		// 需要判断是否存在此用户
 		// TODO: 可以先存储到数据库内
-		SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", FailStatus)
+		if err := SendCommonMessage(conn, receiveMessage.Receiver, receiveMessage.Sender, receiveMessage.Message, "", FailStatus); err != nil {
+			logServer.Error("发送信息失败:%s", err.Error())
+		}
 		return false
 	}
 }
@@ -168,13 +162,17 @@ func (tcpserver *TcpServer) LaunchFriendRequest(receiveMessage Message, conn *ne
 
 	if err != nil {
 		logServer.Error("查询用户好友信息出现错误:%s", err.Error())
-		SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, "查询好友失败", "", FriendMakeInfoSendFail)
+		if err := SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, "查询好友失败", "", FriendMakeInfoSendFail); err != nil {
+			logServer.Error("发送信息失败:%s", err.Error())
+		}
 		return
 	}
 
 	for i := range friends.Friends {
 		if friends.Friends[i].UserAccount == accepterint {
-			SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, "找茬？", "", FriendMakeInfoSendFail)
+			if err := SendCommonMessage(conn, "tcpserver provider", receiveMessage.Sender, "找茬？", "", FriendMakeInfoSendFail); err != nil {
+				logServer.Error("发送信息失败:%s", err.Error())
+			}
 			return
 		}
 	}
@@ -267,6 +265,297 @@ func (tcpserver *TcpServer) RejectFrienRequest(receiveMessage Message, conn *net
 	if friendmakeinfopo != -1 {
 		tcpserver.friendMakeList.Delete(receiveMessage.Message)
 	}
+}
+
+// InviteFriendInToGroup 邀请好友入群
+func (tcpserver *TcpServer) InviteFriendInToGroup(receiveMessage Message, conn *net.TCPConn) {
+	groupid, err := strconv.ParseInt(receiveMessage.Groupid, 10, 64)
+	if err != nil {
+		logServer.Error("群聊id转码失败:%s", err.Error())
+		return
+	}
+	groupinfo, err := tcpserver.service.QueryGroupInfo(groupid)
+	if err != nil {
+		logServer.Error("群聊查询失败:%s", err.Error())
+		return
+	}
+	if groupinfo.Deleted == 1 {
+		logServer.Info("群聊:%s已删除", receiveMessage.Groupid)
+		return
+	}
+
+	owner := strconv.FormatInt(groupinfo.GroupOwner, 10)
+
+	// 当邀请者不是群主时 需要向群主进行信息转发
+	if receiveMessage.Sender != owner {
+		user := strings.Split(receiveMessage.Message, ",")
+		ownerconni, ok := tcpserver.connectionpool.Load(owner)
+		if !ok {
+			return
+		}
+		ownerconn := ownerconni.(*net.TCPConn)
+		for i := range user {
+			if err := SendCommonMessage(ownerconn, receiveMessage.Sender, owner, user[i], receiveMessage.Groupid, InviteFriendInToGroupAskForOwner); err != nil {
+				logServer.Error("发送信息出错:%s", err.Error())
+			}
+
+		}
+		return
+	}
+	// 本身就是群主 直接发送
+	user := strings.Split(receiveMessage.Message, ",")
+
+	for i := range user {
+		ownerconn, ok := tcpserver.connectionpool.Load(user[i])
+		if !ok {
+			continue
+		}
+		connreceiver := ownerconn.(*net.TCPConn)
+		// 生成验证码
+		var veryfycode = ""
+		for i := 0; i < 4; i++ {
+			number := rand.Intn(10)
+			word := strconv.Itoa(number)
+			veryfycode += word
+		}
+
+		if err := SendCommonMessage(connreceiver, receiveMessage.Sender, user[i], veryfycode, receiveMessage.Groupid, InviteFriendInToGroup); err != nil {
+			logServer.Error("发送信息出现错误:%s")
+			continue
+		}
+
+		// 写入邀请列表
+		tcpserver.groupJoinVerifyCode.lock.Lock()
+		if _, ok := tcpserver.groupJoinVerifyCode.groupByUserAcc[user[i]]; !ok {
+			tcpserver.groupJoinVerifyCode.groupByUserAcc[user[i]] = GroupByUserAccStruct{
+				Code: make(map[string]string),
+			}
+		}
+		tcpserver.groupJoinVerifyCode.groupByUserAcc[user[i]].Code[receiveMessage.Groupid] = veryfycode
+		tcpserver.groupJoinVerifyCode.lock.Unlock()
+	}
+
+	if err := SendCommonMessage(conn, "tcpserver", receiveMessage.Sender, "", receiveMessage.Groupid, FriendMakeInfoSendSuccess); err != nil {
+		logServer.Error("发送信息出现错误:%s")
+	}
+
+}
+
+// GroupOwenerRejectInviteReq 群主拒绝邀请请求
+func (tcpserver *TcpServer) GroupOwenerRejectInviteReq(receiveMessage Message, conn *net.TCPConn) {
+	conni, ok := tcpserver.connectionpool.Load(receiveMessage.Receiver)
+	if !ok {
+		return
+	}
+
+	receiveconn := conni.(*net.TCPConn)
+	err := SendCommonMessage(receiveconn, receiveMessage.Sender, receiveMessage.Receiver, receiveMessage.Message, receiveMessage.Groupid, GroupOwnerRejectInvite)
+	if err != nil {
+		_ = SendCommonMessage(conn, "tcp server", receiveMessage.Sender, receiveMessage.Message, receiveMessage.Groupid, FriendMakeInfoSendFail)
+		return
+	}
+
+	_ = SendCommonMessage(conn, "tcp server", receiveMessage.Sender, receiveMessage.Message, receiveMessage.Groupid, FriendMakeInfoSendSuccess)
+
+}
+
+// GroupOwenerAcceptInviteReq 群主同意邀请请求
+func (tcpserver *TcpServer) GroupOwenerAcceptInviteReq(receiveMessage Message, conn *net.TCPConn) {
+	groupid, err := strconv.ParseInt(receiveMessage.Groupid, 10, 64)
+	if err != nil {
+		logServer.Error("群聊id转码失败:%s", err.Error())
+		return
+	}
+	groupinfo, err := tcpserver.service.QueryGroupInfo(groupid)
+	if err != nil {
+		logServer.Error("群聊查询失败:%s", err.Error())
+		return
+	}
+	if groupinfo.Deleted == 1 {
+		logServer.Info("群聊:%s已删除", receiveMessage.Groupid)
+		return
+	}
+
+	owner := strconv.FormatInt(groupinfo.GroupOwner, 10)
+	if owner != receiveMessage.Sender {
+		return
+	}
+
+	receiveracc := receiveMessage.Message
+
+	receiveconni, ok := tcpserver.connectionpool.Load(receiveracc)
+	if !ok {
+		return
+	}
+	receiveconn := receiveconni.(*net.TCPConn)
+	var veryfycode = ""
+	for i := 0; i < 4; i++ {
+		number := rand.Intn(10)
+		word := strconv.Itoa(number)
+		veryfycode += word
+	}
+
+	if err := SendCommonMessage(receiveconn, receiveMessage.Receiver, receiveracc, veryfycode, receiveMessage.Groupid, InviteFriendInToGroup); err != nil {
+		return
+	}
+
+	// 写入邀请列表
+	tcpserver.groupJoinVerifyCode.lock.Lock()
+	if _, ok := tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveracc]; !ok {
+		tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveracc] = GroupByUserAccStruct{
+			Code: make(map[string]string),
+		}
+	}
+	tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveracc].Code[receiveMessage.Groupid] = veryfycode
+	tcpserver.groupJoinVerifyCode.lock.Unlock()
+
+}
+
+// UserRejectJoinToGroup 用户拒绝入群
+func (tcpserver *TcpServer) UserRejectJoinToGroup(receiveMessage Message, conn *net.TCPConn) {
+	logServer.Info("用户拒绝入群")
+	// 删除邀请码
+	if _, ok := tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender]; !ok {
+		return
+	}
+	if _, ok := tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender].Code[receiveMessage.Groupid]; !ok {
+		return
+	}
+
+	tcpserver.groupJoinVerifyCode.lock.RLock()
+	verfycode := tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender].Code[receiveMessage.Groupid]
+	tcpserver.groupJoinVerifyCode.lock.RUnlock()
+
+	// 验证码不正确
+	if verfycode != receiveMessage.Message {
+		return
+	}
+
+	tcpserver.groupJoinVerifyCode.lock.Lock()
+	delete(tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender].Code, receiveMessage.Groupid)
+	tcpserver.groupJoinVerifyCode.lock.Unlock()
+
+	// 回复邀请者
+	conni, ok := tcpserver.connectionpool.Load(receiveMessage.Receiver)
+	if !ok {
+		return
+	}
+	connreceiver := conni.(*net.TCPConn)
+	_ = SendCommonMessage(connreceiver, receiveMessage.Sender, receiveMessage.Receiver, "拒绝您的邀请!", receiveMessage.Groupid, UserRejectGroupInvite)
+
+}
+
+// UserAcceptJoinToGroup 用户同意入群
+func (tcpserver *TcpServer) UserAcceptJoinToGroup(receiveMessage Message, conn *net.TCPConn) {
+	logServer.Info("用户同意入群")
+	logServer.Info("message:%v", receiveMessage)
+	// 删除邀请码
+	if _, ok := tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender]; !ok {
+		return
+	}
+	if _, ok := tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender].Code[receiveMessage.Groupid]; !ok {
+		return
+	}
+
+	if _, ok := tcpserver.groupchatting.Load(receiveMessage.Groupid); !ok {
+		return
+	}
+
+	tcpserver.groupJoinVerifyCode.lock.RLock()
+	verfycode := tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender].Code[receiveMessage.Groupid]
+	tcpserver.groupJoinVerifyCode.lock.RUnlock()
+
+	// 验证码不正确
+	if verfycode != receiveMessage.Message {
+		return
+	}
+
+	useraccount, err := strconv.ParseInt(receiveMessage.Sender, 10, 64)
+	if err != nil {
+		logServer.Error("用户转码失败:%s", err.Error())
+		return
+	}
+
+	groupid, err := strconv.ParseInt(receiveMessage.Groupid, 10, 64)
+	if err != nil {
+		logServer.Error("群号转码失败:%s", err.Error())
+		return
+	}
+
+	// 查询用户是否在群内
+	ifexist, err := tcpserver.service.QueryIfUserInGroup(useraccount, groupid)
+	if err != nil {
+		logServer.Error("查询出现错误:%s", err.Error())
+		return
+	}
+
+	if ifexist {
+		logServer.Info("用户:%s已在群:%s内", receiveMessage.Sender, receiveMessage.Groupid)
+		return
+	}
+
+	if err := tcpserver.service.AddUserToGroup(useraccount, groupid); err != nil {
+		logServer.Error("加入群聊失败:%s", err.Error())
+		if err := SendCommonMessage(conn, "tcpserver", receiveMessage.Receiver, "加入群聊失败!", receiveMessage.Groupid, UserJoinInGroupFail); err != nil {
+			return
+		}
+		return
+	}
+
+	tcpserver.groupJoinVerifyCode.lock.Lock()
+	delete(tcpserver.groupJoinVerifyCode.groupByUserAcc[receiveMessage.Sender].Code, receiveMessage.Groupid)
+	tcpserver.groupJoinVerifyCode.lock.Unlock()
+
+	// 加入需通知群友
+	groupinfoi, _ := tcpserver.groupchatting.Load(receiveMessage.Groupid)
+	groupinfo := groupinfoi.(Group)
+	groupinfo.lock.Lock()
+	for user := range groupinfo.groupmember {
+		conni, ok := tcpserver.connectionpool.Load(user)
+		if !ok {
+			continue
+		}
+		connreceiver := conni.(*net.TCPConn)
+		_ = SendCommonMessage(connreceiver, receiveMessage.Sender, user, "用户加入群聊", receiveMessage.Groupid, UserJoinInGroup)
+	}
+
+	groupinfo.groupmember[receiveMessage.Sender] = struct{}{}
+	groupinfo.lock.Unlock()
+
+}
+
+// CreateNewGroupRequest 创建新群聊
+func (tcpserver *TcpServer) CreateNewGroup(receiveMessage Message, conn *net.TCPConn) {
+	if _, ok := tcpserver.groupchatting.Load(receiveMessage.Groupid); ok {
+		return
+	}
+
+	groupid, err := strconv.ParseInt(receiveMessage.Groupid, 10, 64)
+	if err != nil {
+		logServer.Error("群id解码失败：%s", err.Error())
+		return
+	}
+
+	groupmembers, err := tcpserver.service.QueryGroupMembers(groupid)
+	if err != nil {
+		logServer.Error("查询群用户失败:%s", err.Error())
+		return
+	}
+
+	var group = Group{
+		groupmember: make(map[string]struct{}),
+		lock:        &sync.Mutex{},
+	}
+
+	group.lock.Lock()
+	for memberi := range groupmembers {
+		memberid := strconv.FormatInt(groupmembers[memberi].UserAccount, 10)
+		group.groupmember[memberid] = struct{}{}
+
+	}
+	group.lock.Unlock()
+	tcpserver.groupchatting.Store(receiveMessage.Groupid, group)
+	logServer.Info("群聊:%s,加入群聊池。", receiveMessage.Groupid)
 }
 
 // Gracefulclose 优雅断开连接 断开前发送信息
