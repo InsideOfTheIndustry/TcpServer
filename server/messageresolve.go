@@ -131,7 +131,7 @@ func (tcpserver *TcpServer) HeartBeatMessage(receiveMessage Message, connectiden
 		logServer.Info("用户：（%s）断开连接", receiveMessage.Sender)
 	}
 
-	connectidentify.expireat.Reset(30 * time.Second)
+	connectidentify.expireat.Reset(300 * time.Second)
 
 }
 
@@ -147,7 +147,7 @@ func (tcpserver *TcpServer) CloseConnect(receiveMessage Message, conn *net.TCPCo
 			return
 		}
 
-		tcpserver.connectionpool.Delete(receiveMessage.Sender)
+		// tcpserver.connectionpool.Delete(receiveMessage.Sender)
 		logServer.Info("用户：（%s）断开连接", receiveMessage.Sender)
 	} else {
 		conn.Close()

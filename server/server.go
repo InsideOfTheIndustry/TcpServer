@@ -206,7 +206,7 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 	var connectidentify = ConnectIdentify{
 		connect:         connect,
 		ifinconnectpool: false,
-		expireat:        time.NewTimer(30 * time.Second),
+		expireat:        time.NewTimer(300 * time.Second),
 		useraccount:     "unlogined",
 	}
 
@@ -231,6 +231,7 @@ func (tcpserver *TcpServer) chattingWithConnect(connect *net.TCPConn) {
 						tcpserver.connectionpool.Delete(connectidentify.useraccount)
 						connectidentify.connect.Close()
 						useraccountint, _ := strconv.ParseInt(connectidentify.useraccount, 10, 64)
+						logServer.Info("修改用户状态！")
 						if err := tcpserver.service.UpdateUserOnlineStatus(useraccountint, false); err != nil {
 							logServer.Error("用户修改状态失败:%s", err.Error())
 						}
